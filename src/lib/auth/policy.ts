@@ -8,17 +8,6 @@ export function safeReturnPath(value: unknown): string {
   return value === "/" ? "/" : POST_LOGIN_PATH;
 }
 
-export function initialMembership(
-  email: string,
-  allowedDomains: readonly string[],
-) {
-  const domain = email.slice(email.lastIndexOf("@") + 1).toLowerCase();
-  return allowedDomains.includes(domain) ? "approved" : "pending";
-}
-
-export function canPost(user: {
-  emailVerified: boolean;
-  membershipStatus: string;
-}) {
-  return user.emailVerified && user.membershipStatus === "approved";
+export function canPost(user: { emailVerified: boolean }) {
+  return user.emailVerified;
 }

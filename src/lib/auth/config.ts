@@ -5,7 +5,6 @@ export type AuthConfig = {
   baseURL: string;
   emailApiKey: string;
   emailFrom: string;
-  allowedEmailDomains: string[];
 };
 
 type Environment = Record<string, string | undefined>;
@@ -51,10 +50,6 @@ export function readAuthConfig(env: Environment): AuthConfig | null {
       baseURL: url.origin,
       emailApiKey,
       emailFrom,
-      allowedEmailDomains: (env.AUTH_ALLOWED_EMAIL_DOMAINS ?? "")
-        .split(",")
-        .map((domain) => domain.trim().toLowerCase())
-        .filter(Boolean),
     };
   } catch {
     return null;

@@ -47,7 +47,7 @@ Omela, Jinrikisha H.
 
 ## Implementation specification
 
-The sections below incorporate the supplied feature screenshots and refine their technical tasks. The original project overview, team details, and goals above are preserved. The Next.js scaffold, public neobrutalist landing page, and MongoDB/Better Auth account flows are implemented. Auth awaits environment credentials for live operation; report submission and claims remain planned. The landing page uses explicitly labeled illustrative reports. MongoDB replaces the earlier Supabase/PostgreSQL recommendation at the user's direction.
+The sections below incorporate the supplied feature screenshots and refine their technical tasks. The original project overview, team details, and goals above are preserved. The Next.js scaffold, public neobrutalist landing page, and MongoDB/Better Auth account flows are implemented. Better Auth also issues optional five-minute JWTs with minimal identity claims and public JWKS verification keys; application authorization continues to use database sessions and current user records. Auth awaits environment credentials for live operation; report submission and claims remain planned. The landing page uses explicitly labeled illustrative reports. MongoDB replaces the earlier Supabase/PostgreSQL recommendation at the user's direction.
 
 ### Product scope and roles
 
@@ -59,7 +59,7 @@ Build a responsive web application for one school, office, or organization initi
 | Member | Browse organization reports, submit and manage own reports, submit claims on found items, view own claim outcomes, and view own notifications and history. |
 | Administrator | Moderate reports, review claims and private evidence, approve or reject claims, record physical returns, and review audit history within the organization. |
 
-Require verified email before submitting reports or claims. Organization membership must be granted through an administrator-controlled invitation or an approved email domain. Members cannot assign their own role. Administrators are provisioned through a trusted setup process.
+Require verified email before submitting reports or claims. User-requested scope change: signup is open to any email domain, and verification grants member access automatically in the single community. Email-domain allowlists and staff membership approval are removed. Members cannot assign their own role. Administrators are provisioned through a trusted setup process.
 
 ### Recommended technical architecture
 
@@ -68,9 +68,9 @@ Require verified email before submitting reports or claims. Organization members
 | Application | Keep the existing Next.js App Router, TypeScript, Tailwind CSS, npm, and ESLint setup. |
 | Backend | Use Next.js Server Actions for first-party form mutations and Server Components for initial reads. Use Route Handlers when an HTTP endpoint is needed, such as an email webhook. A separate CRUD API service is unnecessary for the initial web app. |
 | Database | MongoDB Atlas or a replica set, with versioned index/document validation changes, explicit reference checks, unique indexes, and transactions. Enforce access in server operations. |
-| Authentication | Better Auth with the MongoDB adapter, email/password login, verified email, database sessions, recovery emails, and server-side membership checks. |
+| Authentication | Better Auth with the MongoDB adapter, email/password login, verified email, database sessions, recovery emails, and server-side verification/role/ownership checks. |
 | Validation | Shared Zod schemas for form input, with authoritative validation on the server. Use native forms and React form state initially; add a form library only if the workflow needs it. |
-| File storage | Private object storage for report photos and ownership evidence; provider to be selected during upload implementation. Store object paths in MongoDB and authorize every download or short-lived signed URL. |
+| File storage | Cloudinary for all user-uploaded images and videos, using authenticated delivery. Store object paths in MongoDB and authorize every download or short-lived signed URL. The private temporary attachment workflow is implemented; report/evidence/avatar attachment integration remains pending. |
 | Search | MongoDB indexes for category, location, date, type, and status filters; evaluate MongoDB text indexes or Atlas Search when search is implemented. Index public report fields only. |
 | Notifications | Database-backed in-app notifications first. Add transactional email through a provider such as Resend and an outbox worker with retry handling in Phase 2. |
 | Testing | Unit tests for matching and validation; integration tests for database authorization and state changes; Playwright for important user journeys. |
@@ -78,7 +78,7 @@ Require verified email before submitting reports or claims. Organization members
 
 Server Actions are remotely callable entry points, so every mutation must check authentication, authorization, and input rather than depending on hidden buttons or route redirects. See the [Next.js mutation guide](https://nextjs.org/docs/app/getting-started/mutating-data) and [authentication guide](https://nextjs.org/docs/app/guides/authentication).
 
-Authentication follows the [Better Auth Next.js integration](https://better-auth.com/docs/integrations/next) and [MongoDB adapter](https://better-auth.com/docs/adapters/mongo). New users are members with pending organization access unless their email domain is explicitly approved; email verification is always required. MongoDB has no PostgreSQL row-level security, so protected reads and writes must enforce organization, role, and ownership in server code. Private file access must apply the same restrictions when storage is implemented.
+Authentication follows the [Better Auth Next.js integration](https://better-auth.com/docs/integrations/next) and [MongoDB adapter](https://better-auth.com/docs/adapters/mongo). New users receive the member role and gain member access after verifying their email; no domain restriction or staff approval is required. Existing pending membership fields are ignored. MongoDB has no PostgreSQL row-level security, so protected reads and writes must enforce the single-community boundary, verified email, role, and ownership in server code. Private file access must apply the same restrictions when storage is implemented.
 
 ### Foundation required before Phase 1
 
@@ -100,6 +100,8 @@ Authentication follows the [Better Auth Next.js integration](https://better-auth
 Public reports must not expose serial numbers, ownership answers, proof documents, phone numbers, email addresses, or details intended to distinguish the true owner. Store private verification details separately from public report content. Administrators review evidence; the app must not automatically approve a claim based on a text match.
 
 Upload rules: allow JPEG, PNG, and WebP images up to 5 MB each; validate actual file content as well as declared type; reject SVG and executable content; generate randomized object names; strip metadata before distributing report photos; and clean up abandoned uploads. Evidence access is limited to the claimant and authorized reviewers. Reporter access to an item does not grant access to a claimant's proof documents.
+
+User-requested scope addition: Cloudinary also supports MP4 and WebM videos up to 20 MB each. The implemented temporary attachment panel accepts at most five combined images/videos per verified member, checks actual file signatures and provider decoding, and keeps them private to their owner. Still images are re-encoded without metadata; animated images and audio-only media are rejected. Temporary attachments expire after 24 hours; an operator must schedule the idempotent cleanup command to delete expired provider assets. Report attachment limits and evidence-review permissions must be enforced when the corresponding workflows are implemented. Adding video does not implement claims or report submission.
 
 ### Phase 2: Low-Hanging Fruits
 
@@ -163,4 +165,4 @@ Required release checks include a complete report-to-claim-to-handoff journey; r
 
 ### Decisions still needed from the organization
 
-Confirm the organization name and membership policy, administrator accounts, collection process and location, proof-document retention duration, supported languages, email sender domain, hosting ownership, and the labeled matching evaluation dataset. These do not prevent local UI development, but production integrations and organization-specific content depend on them.
+Confirm the organization name, administrator accounts, collection process and location, proof-document retention duration, supported languages, email sender domain, hosting ownership, and the labeled matching evaluation dataset. These do not prevent local UI development, but production integrations and organization-specific content depend on them.

@@ -3,24 +3,25 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/client";
+import { toast } from "@/components/toasts";
 
 export function SignOutButton() {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState("");
   async function signOut() {
+    if (pending) return;
     setPending(true);
-    setError("");
     try {
       const result = await authClient.signOut();
       if (result.error) {
-        setError("Couldn’t sign out. Please try again.");
+        toast.error("Couldn’t sign out. Please try again.");
         return;
       }
+      toast.success("You’re signed out.");
       router.replace("/");
       router.refresh();
     } catch {
-      setError("Couldn’t reach account services. Please try again.");
+      toast.error("Couldn’t reach account services. Please try again.");
     } finally {
       setPending(false);
     }
@@ -34,9 +35,6 @@ export function SignOutButton() {
       >
         {pending ? "Signing out…" : "Sign out"}
       </button>
-      <p className="auth-error" role="alert">
-        {error}
-      </p>
     </div>
   );
 }

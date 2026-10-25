@@ -1,11 +1,11 @@
 import { betterAuth } from "better-auth/minimal";
 import { APIError } from "better-auth/api";
+import { jwt } from "better-auth/plugins";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
 import type { Db, MongoClient } from "mongodb";
 import type { AuthConfig } from "./config";
 import type { SendAuthEmail } from "./email";
 import {
-  initialMembership,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "./policy";
@@ -33,6 +33,20 @@ export function createAuth({
     secret: config.secret,
     trustedOrigins: [config.baseURL],
     database: mongodbAdapter(db, { client }),
+    plugins: [
+      jwt({
+        // Issue tokens on demand; ordinary session reads need no signing work.
+        disableSettingJwtHeader: true,
+        jwt: {
+          issuer: config.baseURL,
+          audience: config.baseURL,
+          expirationTime: "5m",
+          // The plugin adds sub and standard claims. Keep personal data and
+          // mutable permissions out of tokens; authorize using trusted records.
+          definePayload: () => ({}),
+        },
+      }),
+    ],
     emailAndPassword: {
       enabled: true,
       requireEmailVerification: true,
@@ -73,12 +87,6 @@ export function createAuth({
           defaultValue: "member",
           input: false,
         },
-        membershipStatus: {
-          type: ["pending", "approved"],
-          required: true,
-          defaultValue: "pending",
-          input: false,
-        },
       },
     },
     databaseHooks: {
@@ -95,10 +103,6 @@ export function createAuth({
                 ...user,
                 name,
                 role: "member",
-                membershipStatus: initialMembership(
-                  user.email,
-                  config.allowedEmailDomains,
-                ),
               },
             };
           },

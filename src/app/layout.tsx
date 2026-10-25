@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
+import { AppToaster } from "@/components/toasts";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -25,7 +26,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${spaceGrotesk.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        {children}
+        <AppToaster />
+      </body>
     </html>
   );
 }
