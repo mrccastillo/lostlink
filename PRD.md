@@ -47,7 +47,7 @@ Omela, Jinrikisha H.
 
 ## Implementation specification
 
-The sections below incorporate the supplied feature screenshots and refine their technical tasks. The original project overview, team details, and goals above are preserved. Technology choices below are recommendations for implementation; only the Next.js scaffold is currently implemented.
+The sections below incorporate the supplied feature screenshots and refine their technical tasks. The original project overview, team details, and goals above are preserved. The Next.js scaffold, public neobrutalist landing page, and MongoDB/Better Auth account flows are implemented. Auth awaits environment credentials for live operation; report submission and claims remain planned. The landing page uses explicitly labeled illustrative reports. MongoDB replaces the earlier Supabase/PostgreSQL recommendation at the user's direction.
 
 ### Product scope and roles
 
@@ -67,18 +67,18 @@ Require verified email before submitting reports or claims. Organization members
 | --- | --- |
 | Application | Keep the existing Next.js App Router, TypeScript, Tailwind CSS, npm, and ESLint setup. |
 | Backend | Use Next.js Server Actions for first-party form mutations and Server Components for initial reads. Use Route Handlers when an HTTP endpoint is needed, such as an email webhook. A separate CRUD API service is unnecessary for the initial web app. |
-| Database | Supabase PostgreSQL with versioned SQL migrations, foreign keys, indexes, and row-level security. |
-| Authentication | Supabase Auth with cookie-based server integration using `@supabase/ssr`. Validate authentication and organization membership at each server entry point. |
+| Database | MongoDB Atlas or a replica set, with versioned index/document validation changes, explicit reference checks, unique indexes, and transactions. Enforce access in server operations. |
+| Authentication | Better Auth with the MongoDB adapter, email/password login, verified email, database sessions, recovery emails, and server-side membership checks. |
 | Validation | Shared Zod schemas for form input, with authoritative validation on the server. Use native forms and React form state initially; add a form library only if the workflow needs it. |
-| File storage | Supabase Storage with separate private buckets for report photos and ownership evidence. Store object paths in database records and issue short-lived signed URLs after authorization. |
-| Search | PostgreSQL full-text search over public report fields, combined with indexed category, location, date, type, and status filters. Add typo tolerance only if user testing warrants it. |
+| File storage | Private object storage for report photos and ownership evidence; provider to be selected during upload implementation. Store object paths in MongoDB and authorize every download or short-lived signed URL. |
+| Search | MongoDB indexes for category, location, date, type, and status filters; evaluate MongoDB text indexes or Atlas Search when search is implemented. Index public report fields only. |
 | Notifications | Database-backed in-app notifications first. Add transactional email through a provider such as Resend and an outbox worker with retry handling in Phase 2. |
 | Testing | Unit tests for matching and validation; integration tests for database authorization and state changes; Playwright for important user journeys. |
-| Deployment | One Next.js deployment with managed Supabase services. Keep preview and production data separate and keep server secrets out of browser bundles. |
+| Deployment | One Next.js deployment with MongoDB Atlas and Resend for account emails. Keep preview and production data separate and keep server secrets out of browser bundles. |
 
 Server Actions are remotely callable entry points, so every mutation must check authentication, authorization, and input rather than depending on hidden buttons or route redirects. See the [Next.js mutation guide](https://nextjs.org/docs/app/getting-started/mutating-data) and [authentication guide](https://nextjs.org/docs/app/guides/authentication).
 
-Implement server authentication using the current [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client). Private file access follows [Supabase bucket controls](https://supabase.com/docs/guides/storage/buckets/fundamentals) and [Storage authorization policies](https://supabase.com/docs/guides/storage/security/access-control). Application authorization and database policies must enforce the same organization and role restrictions.
+Authentication follows the [Better Auth Next.js integration](https://better-auth.com/docs/integrations/next) and [MongoDB adapter](https://better-auth.com/docs/adapters/mongo). New users are members with pending organization access unless their email domain is explicitly approved; email verification is always required. MongoDB has no PostgreSQL row-level security, so protected reads and writes must enforce organization, role, and ownership in server code. Private file access must apply the same restrictions when storage is implemented.
 
 ### Foundation required before Phase 1
 
