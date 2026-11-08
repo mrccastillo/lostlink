@@ -1,7 +1,7 @@
-﻿import Link from "next/link";
+"use client";
+
 import type { ReactNode } from "react";
 import { ArrowUpRight } from "@/components/icons";
-import { POST_ITEM_LOGIN_PATH } from "@/lib/auth/policy";
 
 type ReportButtonProps = { children?: ReactNode; className?: string };
 
@@ -10,9 +10,14 @@ export function ReportButton({
   className = "button button-yellow",
 }: ReportButtonProps) {
   return (
-    <Link className={className} href={POST_ITEM_LOGIN_PATH}>
+    <button type="button" className={className} onClick={(event) => {
+      const url = new URL(window.location.href);
+      url.searchParams.set("compose", "1");
+      window.history.pushState(null, "", `${url.pathname}${url.search}${url.hash}`);
+      event.currentTarget.closest("details")?.removeAttribute("open");
+    }} aria-haspopup="dialog">
       {children}
       <ArrowUpRight />
-    </Link>
+    </button>
   );
 }

@@ -39,8 +39,18 @@ test("configuration fails closed and redirects stay on known application routes"
     undefined,
     ["/"],
   ])
-    assert.equal(safeReturnPath(path), "/post");
-  assert.equal(safeReturnPath("/"), "/");
+    assert.equal(safeReturnPath(path), "/discover");
+  assert.equal(safeReturnPath("/"), "/discover");
+  assert.equal(safeReturnPath("/discover"), "/discover");
+  assert.equal(safeReturnPath("/post"), "/discover?compose=1");
+  assert.equal(safeReturnPath("/discover?compose=1"), "/discover?compose=1");
+  assert.equal(safeReturnPath("/discover?compose=1&next=https://evil.test"), "/discover");
+  assert.equal(safeReturnPath("/claims"), "/claims");
+  assert.equal(safeReturnPath("/my-posts"), "/my-posts");
+  assert.equal(safeReturnPath("/my-posts?next=https://evil.test"), "/discover");
+  assert.equal(safeReturnPath("/claims/12345678-1234-1234-1234-123456789abc"), "/claims/12345678-1234-1234-1234-123456789abc");
+  assert.equal(safeReturnPath("/claims/12345678-1234-1234-1234-123456789abc?next=https://evil.test"), "/discover");
+  assert.equal(safeReturnPath("/post?next=https://evil.test"), "/discover");
   assert.equal(canPost({ emailVerified: false }), false);
   assert.equal(canPost({ emailVerified: true }), true);
   const legacyMember = { emailVerified: true, membershipStatus: "pending" };

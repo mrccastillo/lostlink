@@ -1,0 +1,27 @@
+.my-posts-tabs { display: flex; gap: 26px; border-bottom: 1px solid #c1c1b5; margin-top: 30px; }
+.my-posts-tabs a { font-size: 13px; padding: 12px 0 16px; border-bottom: 3px solid transparent; }
+.my-posts-tabs a[aria-current] { font-weight: 600; border-color: var(--ink); }
+.my-posts-note { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 18px 0 8px; }
+.my-posts-list { max-width: 1000px; }
+.my-post { padding: 26px 0; border-bottom: 1px solid #d4d3c9; }
+.my-post-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.my-post-type { font: 10px "Courier New", monospace; text-transform: uppercase; color: var(--muted); }
+.my-post-review { font-size: 10px; padding: 6px 10px; background: #e6e4d9; }
+.my-post-review.is-published { background: var(--acid); }
+.my-post h2 { font-size: 23px; font-weight: 600; letter-spacing: -.035em; margin: 12px 0 8px; overflow-wrap: anywhere; }
+.my-post-location { color: var(--muted); font-size: 12px; line-height: 1.8; }
+.my-post-location > span { padding-inline: 8px; }
+.my-post summary { margin-top: 18px; font-size: 12px; cursor: pointer; text-underline-offset: 4px; }
+.my-post summary:hover { text-decoration: underline; }
+.my-post-description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.8; margin: 18px 0; max-width: 700px; }
+.my-post dl { display: flex; flex-wrap: wrap; gap: 20px 40px; margin-top: 18px; }
+.my-post dt { font-size: 10px; color: var(--muted); margin-bottom: 7px; }
+.my-post dd { font-size: 12px; margin: 0; }
+.my-post dl > div:first-child dd { text-transform: capitalize; }
+.my-posts-empty { padding: 64px 20px; text-align: center; }
+.my-posts-empty > span { font-size: 32px; }
+.my-posts-empty h2 { font-size: 25px; font-weight: 600; margin: 18px 0 10px; }
+.my-posts-empty p { font-size: 14px; line-height: 1.7; color: var(--muted); margin-bottom: 24px; }
+.my-posts-empty .button { font-size: 13px; }
+.my-posts-pagination { display: flex; justify-content: space-between; gap: 20px; max-width: 1000px; font-size: 12px; padding: 24px 0; }
+.my-posts-pagination a { text-decoration: underline; text-underline-offset: 4px; }

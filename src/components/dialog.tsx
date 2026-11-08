@@ -8,9 +8,10 @@ type DialogProps = {
   onClose: () => void;
   title: string;
   children: ReactNode;
+  className?: string;
 };
 
-export function Dialog({ open, onClose, title, children }: DialogProps) {
+export function Dialog({ open, onClose, title, children, className = "" }: DialogProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
 
@@ -35,9 +36,13 @@ export function Dialog({ open, onClose, title, children }: DialogProps) {
   return (
     <dialog
       ref={ref}
-      className="site-dialog"
+      className={`site-dialog ${className}`.trim()}
       aria-labelledby={titleId}
-      onClose={onClose}
+      onClose={(event) => {
+        // Strict Mode can close and reopen the dialog before its queued close
+        // event fires. Only dismiss the parent when the dialog is still closed.
+        if (!event.currentTarget.open) onClose();
+      }}
       onKeyDown={(event) => {
         if (event.key !== "Tab") return;
         const controls = Array.from(

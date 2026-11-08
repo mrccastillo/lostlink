@@ -256,26 +256,6 @@
   font-size: 14px;
   line-height: 1.8;
 }
-.attachment-panel {
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: var(--rule);
-}
-.attachment-panel h2 { font-size: 22px; font-weight: 700; }
-.attachment-panel p { font-size: 14px; line-height: 1.7; margin-block: 12px; }
-.attachment-panel fieldset { display: grid; gap: 12px; min-width: 0; }
-.attachment-panel input[type="file"] { width: 100%; font-size: 14px; }
-.attachment-panel button, .attachment-panel > a {
-  display: inline-block;
-  padding: 10px 14px;
-  border: var(--rule);
-  margin: 6px 8px 6px 0;
-  font-size: 13px;
-  font-weight: 600;
-}
-.attachment-panel button:disabled { opacity: 0.5; cursor: wait; }
-.attachment-panel ul { list-style: none; margin-top: 20px; }
-.attachment-panel li { padding-block: 10px; border-top: var(--rule); }
 .account-status > div {
   margin-top: 30px;
 }

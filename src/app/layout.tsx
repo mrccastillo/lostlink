@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
 import { AppToaster } from "@/components/toasts";
+import { Suspense } from "react";
+import { PostModal } from "@/features/post/post-modal";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -29,6 +31,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         {children}
         <AppToaster />
+        <Suspense fallback={null}><PostModal /></Suspense>
       </body>
     </html>
   );

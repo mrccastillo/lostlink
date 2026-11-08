@@ -1,0 +1,95 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { test } from "node:test";
+import { MongoClient } from "mongodb";
+import { MongoMemoryReplSet } from "mongodb-memory-server";
+import { validateReport, type ReportInput } from "../src/features/reports/policy";
+import { createReportService, ensureReportSchemaV1 } from "../src/lib/reports/service";
+
+function input(): ReportInput { return { requestId: randomUUID(), type: "lost", title: "Black headphones", category: "Electronics", location: "Library", occurredOn: "2026-01-01", description: "Black over-ear headphones left near the reading tables.", attachments: [] }; }
+
+test("report validation rejects invalid dates, fields, and duplicate attachments", () => {
+  const now = new Date("2026-11-08T16:30:00Z");
+  assert.equal(validateReport({ ...input(), occurredOn: "2026-11-09" }, now).occurredOn, "2026-11-09");
+  for (const changes of [{ title: "x" }, { category: "invented" }, { location: "" }, { description: "short" }, { occurredOn: "2026-02-30" }, { occurredOn: "2026-11-10" }, { requestId: "bad" }]) assert.throws(() => validateReport({ ...input(), ...changes }, now));
+  const id = randomUUID();
+  assert.throws(() => validateReport({ ...input(), attachments: [id, id] }, now));
+  assert.throws(() => validateReport({ ...input(), attachments: Array.from({ length: 6 }, () => randomUUID()) }, now));
+});
+
+test("report submission enforces authorization, transactions, idempotency, and attachment ownership", { timeout: 120_000 }, async () => {
+  const replica = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
+  const client = new MongoClient(replica.getUri());
+  try {
+    await client.connect();
+    const db = client.db("isolated_reports_test");
+    await ensureReportSchemaV1(db);
+    await ensureReportSchemaV1(db);
+    const service = createReportService(db, client);
+    const actor = { id: "member-one", emailVerified: true };
+    const other = { id: "member-two", emailVerified: true };
+    await assert.rejects(service.submit(null, input()));
+    await assert.rejects(service.submit({ ...actor, emailVerified: false }, input()));
+    assert.equal(await db.collection("reports").countDocuments(), 0);
+    const files = db.collection<{ _id: string; ownerId: string; status: string; expiresAt: Date; publicId: string; resourceType: string; format: string }>("media_uploads");
+    const id = randomUUID();
+    await files.insertOne({ _id: id, ownerId: actor.id, status: "ready", expiresAt: new Date(Date.now() + 60_000), publicId: "isolated/test-file", resourceType: "image", format: "jpg" });
+    await assert.rejects(service.submit(other, { ...input(), attachments: [id] }));
+    await assert.rejects(service.submit(actor, { ...input(), attachments: [randomUUID()] }));
+    assert.equal(await db.collection("reports").countDocuments(), 0);
+    const report = { ...input(), attachments: [id] };
+    await Promise.all([service.submit(actor, report), service.submit(actor, report)]);
+    assert.equal(await db.collection("reports").countDocuments(), 1);
+    assert.equal(await files.countDocuments(), 0);
+    const saved = await db.collection("reports").findOne({ ownerId: actor.id });
+    assert.equal(saved?.moderation, "pending");
+    assert.equal(saved?.lifecycle, "open");
+    assert.equal(saved?.organization, "community");
+    const media = await db.collection("report_media").findOne({ reportId: report.requestId });
+    assert.equal(media?.publicId, "isolated/test-file");
+    assert.equal(media?.expiresAt, undefined);
+    assert.equal(await db.collection("audit_events").countDocuments(), 1);
+    await assert.rejects(service.submit(other, report));
+    await assert.rejects(service.submit(actor, { ...input(), attachments: [id] }));
+    for (let n = 0; n < 4; n++) await service.submit(actor, input());
+    await assert.rejects(service.submit(actor, input()), /five reports/);
+    assert.equal(await db.collection("reports").countDocuments(), 5);
+    const expired = randomUUID();
+    await files.insertOne({ _id: expired, ownerId: other.id, status: "ready", expiresAt: new Date(Date.now() - 1), publicId: "isolated/expired", resourceType: "image", format: "jpg" });
+    await assert.rejects(service.submit(other, { ...input(), attachments: [expired] }));
+    assert.equal(await db.collection("reports").countDocuments(), 5);
+    const contender = { id: "member-three", emailVerified: true };
+    const shared = randomUUID();
+    await files.insertOne({ _id: shared, ownerId: contender.id, status: "ready", expiresAt: new Date(Date.now() + 60_000), publicId: "isolated/concurrent", resourceType: "video", format: "mp4" });
+    const attempts = await Promise.allSettled([service.submit(contender, { ...input(), attachments: [shared] }), service.submit(contender, { ...input(), attachments: [shared] })]);
+    assert.equal(attempts.filter((result) => result.status === "fulfilled").length, 1);
+    assert.equal(await db.collection("reports").countDocuments({ ownerId: contender.id }), 1);
+    assert.equal(await db.collection("report_media").countDocuments({ ownerId: contender.id }), 1);
+    await assert.rejects(service.listOwn(null));
+    await assert.rejects(service.listOwn({ ...actor, emailVerified: false }));
+    const own = await service.listOwn(actor);
+    assert.equal(own.items.length, 5);
+    assert.equal(own.items[0].moderation, "pending");
+    assert.equal((await service.listOwn(other)).items.length, 0);
+    assert.ok(!JSON.stringify(own).includes("publicId"));
+    assert.ok(!JSON.stringify(own).includes("ownerId"));
+    const pagedActor = { id: "paging-member", emailVerified: true };
+    const createdAt = new Date("2026-01-01T12:00:00Z");
+    const records = Array.from({ length: 23 }, (_, index) => ({ ...input(), _id: randomUUID(), ownerId: pagedActor.id, organization: "community", moderation: index % 2 ? "published" : "hidden", lifecycle: "open", createdAt, type: index % 2 ? "found" : "lost" }));
+    await db.collection<{ _id: string }>("reports").insertMany(records);
+    const foreignId = randomUUID();
+    await db.command({ insert: "reports", documents: [{ ...records[0], _id: foreignId, organization: "other-community" }], bypassDocumentValidation: true });
+    const first = await service.listOwn(pagedActor);
+    assert.equal(first.items.length, 20);
+    assert.ok(first.nextCursor);
+    const second = await service.listOwn(pagedActor, { cursor: first.nextCursor });
+    assert.equal(second.items.length, 3);
+    assert.equal(second.nextCursor, null);
+    assert.equal(new Set([...first.items, ...second.items].map((record) => record.id)).size, 23);
+    assert.ok(![...first.items, ...second.items].some((record) => record.id === foreignId));
+    const found = await service.listOwn(pagedActor, { type: "found" });
+    assert.equal(found.items.length, 11);
+    assert.ok(found.items.every((record) => record.type === "found"));
+    await assert.rejects(service.listOwn(pagedActor, { cursor: "invalid" }));
+  } finally { await client.close(); await replica.stop(); }
+});

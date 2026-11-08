@@ -1,0 +1,62 @@
+.post-modal-copy { font-size: 14px; line-height: 1.7; margin: 0 0 22px; color: var(--muted); }
+.post-modal-body > .button { min-height: 44px; font-size: 13px; }
+.attachment-panel { margin: 22px 0; }
+.attachment-panel h2 { font-size: 21px; font-weight: 600; }
+.attachment-panel p { font-size: 13px; line-height: 1.7; margin-block: 12px; }
+.attachment-panel label { font-size: 13px; font-weight: 600; }
+.attachment-panel button, .attachment-panel > a { display: inline-block; padding: 10px 14px; border: 1px solid var(--ink); margin: 6px 8px 6px 0; font-size: 12px; font-weight: 600; background: var(--paper); }
+.attachment-panel button[value="upload"] { background: var(--acid); }
+.attachment-panel button:disabled { opacity: .5; cursor: default; }
+.attachment-panel ul { list-style: none; margin-top: 20px; }
+.attachment-panel li { padding-block: 10px; border-top: 1px solid #c1c1b5; }
+.attachment-panel li > span { font-size: 13px; font-weight: 600; }
+.report-form fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.report-type-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 22px; }
+.report-type-picker label { cursor: pointer; position: relative; }
+.report-type-picker input { position: absolute; opacity: 0; }
+.report-type-picker span { display: block; padding: 13px 10px; border: 1px solid #a7a89d; text-align: center; font-size: 13px; }
+.report-type-picker input:checked + span { background: var(--acid); border-color: var(--ink); font-weight: 600; }
+.report-type-picker input:focus-visible + span { outline: 3px solid #1866b0; outline-offset: 3px; }
+.report-field { display: grid; gap: 8px; font-size: 12px; font-weight: 600; margin-bottom: 18px; }
+.report-field input, .report-field select, .report-field textarea { width: 100%; min-width: 0; background: #fffdf6; color: var(--ink); border: 1px solid #a7a89d; border-radius: 0; padding: 12px; font: 14px var(--font-space-grotesk), sans-serif; }
+.report-field textarea { resize: vertical; }
+.report-field-row { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 16px; }
+.report-field-row input, .report-field-row select { height: 46px; }
+.report-hint { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.6; margin-bottom: 18px; }
+.report-field .report-hint { margin: 0; }
+.report-submit { width: 100%; margin-top: 8px; font-size: 13px; }
+.report-submit:disabled { opacity: .6; cursor: wait; }
+.report-error { color: #9d231d; font-size: 13px; line-height: 1.6; margin-block: 12px; }
+@media (max-width: 480px) { .report-field-row { grid-template-columns: 1fr; gap: 0; } }
+.site-dialog.post-dialog { overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #8a8b7f transparent; scrollbar-gutter: stable; overscroll-behavior: contain; padding-right: 30px; }
+.site-dialog.post-dialog::-webkit-scrollbar { width: 6px; height: 0; }
+.site-dialog.post-dialog::-webkit-scrollbar-track { background: transparent; }
+.site-dialog.post-dialog::-webkit-scrollbar-thumb { background: #8a8b7f; border: 1px solid var(--paper); border-radius: 10px; }
+.site-dialog.post-dialog::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.site-dialog.post-dialog .dialog-heading { gap: 12px; }
+.site-dialog.post-dialog .dialog-heading h2 { min-width: 0; overflow-wrap: anywhere; }
+.site-dialog.post-dialog .dialog-heading button { flex-shrink: 0; }
+.report-form, .post-modal-body, .report-field-row > *, .report-field { min-width: 0; max-width: 100%; }
+.report-submit { white-space: normal; box-shadow: none; overflow-wrap: anywhere; }
+.attachment-panel h2 { font-size: 12px; margin-bottom: 10px; }
+.attachment-panel h2 span { font-weight: 400; color: var(--muted); }
+.media-dropzone { position: relative; border: 1px dashed #8a8b7f; background: #efede3; padding: 18px 12px; text-align: center; transition: background .15s, border-color .15s; }
+.media-dropzone.is-dragging { background: #f0f5aa; border: 2px dashed var(--ink); padding: 17px 11px; }
+.attachment-panel .media-browse { display: flex; flex-direction: column; align-items: center; gap: 8px; border: 0; margin: 0; width: 100%; padding: 0; background: transparent; font-weight: 400; }
+.media-browse strong { font-size: 13px; font-weight: 600; }
+.media-browse > span { font-size: 12px; }
+.media-browse .media-upload-icon { font-size: 28px; line-height: 1; margin-bottom: 4px; }
+.media-dropzone > p { font-size: 10px; color: var(--muted); margin: 12px 0 0; line-height: 1.7; }
+.attachment-panel .media-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0; margin: 14px 0; }
+.attachment-panel .media-preview { min-width: 0; border: 1px solid #c1c1b5; padding: 8px; }
+.media-preview-visual { aspect-ratio: 4 / 3; background: #e6e4d9; overflow: hidden; }
+.media-preview-visual img, .media-preview-visual video { width: 100%; height: 100%; object-fit: contain; }
+.media-preview > p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; margin: 8px 0; }
+.media-preview-status { color: var(--muted); font-size: 10px; }
+.attachment-panel .media-include { display: flex; gap: 6px; align-items: center; font-size: 10px; font-weight: 400; }
+.attachment-panel .media-remove { border: 0; margin: 8px 0 0; padding: 4px 0; font-size: 10px; text-decoration: underline; }
+.attachment-panel .media-upload-button { width: 100%; margin: 0 0 8px; background: var(--acid); }
+.media-existing-placeholder { aspect-ratio: 4 / 3; background: #e6e4d9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 15px; }
+.media-existing-placeholder span { font-size: 9px; color: var(--muted); }
+.media-preview .report-error { white-space: normal; overflow-wrap: anywhere; }
+@media (prefers-reduced-motion: reduce) { .media-dropzone { transition: none; } }

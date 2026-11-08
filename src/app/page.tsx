@@ -4,8 +4,13 @@ import { CommunityBoard } from "@/features/landing/community-board";
 import { backpack, faqs, recoverySteps } from "@/features/landing/content";
 import { Header } from "@/features/landing/header";
 import { ReportButton } from "@/features/landing/report-button";
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { getCurrentSession } from "@/lib/auth/session";
+import { POST_LOGIN_PATH } from "@/lib/auth/policy";
 
-export default function Home() {
+async function LandingPage() {
+  if (await getCurrentSession()) redirect(POST_LOGIN_PATH);
   return (
     <div id="top">
       <a className="skip-link" href="#main">
@@ -16,10 +21,6 @@ export default function Home() {
         <section className="hero page-gutter" aria-labelledby="hero-title">
           <div className="hero-top eyebrow">
             <span>Your community’s lost & found. Rewired.</span>
-            <span className="hero-signal">
-              <span className="signal-dot" />
-              Good people. Good returns.
-            </span>
           </div>
           <h1 className="hero-masthead" id="hero-title">
             LOSTLINK
@@ -40,7 +41,7 @@ export default function Home() {
                 Your stuff deserves a comeback.
               </p>
               <div className="hero-actions">
-                <a href="#board" className="button button-dark">
+                <a href="/discover" className="button button-dark">
                   Hit the board
                   <ArrowUpRight />
                 </a>
@@ -86,16 +87,10 @@ export default function Home() {
                 <span>
                   Good
                   <br />
-                  karma.
+                  deeds.
                 </span>
               </div>
             </div>
-          </div>
-          <div className="hero-foot eyebrow">
-            <span>Small things. Big relief.</span>
-            <a href="#board">
-              Scroll to reconnect <span aria-hidden="true">↓</span>
-            </a>
           </div>
         </section>
         <div
@@ -223,5 +218,13 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<p className="page-gutter" role="status">Opening LostLink…</p>}>
+      <LandingPage />
+    </Suspense>
   );
 }

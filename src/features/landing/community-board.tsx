@@ -2,6 +2,8 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import Link from "next/link";
+import { claimPath } from "@/features/claims/policy";
 import { Dialog } from "@/components/dialog";
 import { ArrowRight, ArrowUpRight, SearchIcon } from "@/components/icons";
 import { sampleReports } from "@/features/landing/content";
@@ -135,10 +137,6 @@ export function CommunityBoard() {
         </div>
       )}
       <div className="board-caption">
-        <p role="status" aria-live="polite">
-          {visibleReports.length} example{" "}
-          {visibleReports.length === 1 ? "report" : "reports"}
-        </p>
         <p>Illustrative items. Real possibilities.</p>
       </div>
       <Dialog
@@ -161,17 +159,17 @@ export function CommunityBoard() {
             </p>
             <p className="dialog-copy">{selected.description}</p>
             <p className="dialog-note">
-              This is an example, not a real report. Live reports and ownership
-              claims are coming soon.
+              This is an example, not a real report. The claim preview does not
+              save or send your answers or proof.
             </p>
-            <a
+            <Link
               className="button button-yellow"
-              href="#how-it-works"
+              href={selected.status === "found" ? claimPath(selected.id) : "#how-it-works"}
               onClick={() => setSelectedId(null)}
             >
-              See how it works
+              {selected.status === "found" ? "Claim / verify ownership" : "See how it works"}
               <ArrowUpRight />
-            </a>
+            </Link>
           </>
         )}
       </Dialog>

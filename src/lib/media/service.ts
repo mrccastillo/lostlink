@@ -86,15 +86,17 @@ export function createMediaService(db: Db, storage: MediaStorage) {
         await records.updateOne({ _id: id }, { $set: { expiresAt: now } });
         throw new MediaError("Upload failed. Please try again later.");
       }
+      return id;
     },
     async download(actor: Actor | null, id: string) {
       return storage.download(await owned(actor, id));
     },
     async remove(actor: Actor | null, id: string) {
-      const record = await owned(actor, id);
-      await records.updateOne({ _id: id, ownerId: record.ownerId }, {
+      authorize(actor);
+      const record = await records.findOneAndUpdate({ _id: id, ownerId: actor.id, status: "ready", expiresAt: { $gt: new Date() } }, {
         $set: { status: "deleting", expiresAt: new Date() },
-      });
+      }, { returnDocument: "after" });
+      if (!record) throw new MediaError("This attachment is unavailable.");
       await storage.remove(record);
       await records.deleteOne({ _id: id, status: "deleting" });
     },
@@ -103,8 +105,12 @@ export function createMediaService(db: Db, storage: MediaStorage) {
         .sort({ expiresAt: 1 }).limit(100).toArray();
       let removed = 0;
       for (const record of expired) {
+        // Claim before external deletion so a concurrent report transfer wins
+        // atomically or rejects this attachment before it can be saved.
+        const claimed = await records.findOneAndUpdate({ _id: record._id, expiresAt: { $lte: new Date() } }, { $set: { status: "deleting" } }, { returnDocument: "after" });
+        if (!claimed) continue;
         // Do not TTL-delete these records: the provider deletion must finish first.
-        await storage.remove(record);
+        await storage.remove(claimed);
         await records.deleteOne({ _id: record._id });
         removed++;
       }

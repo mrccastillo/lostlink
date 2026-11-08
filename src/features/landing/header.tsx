@@ -5,6 +5,7 @@ import { ArrowUpRight, CloseIcon, MenuIcon } from "@/components/icons";
 import { ReportButton } from "@/features/landing/report-button";
 
 const links = [
+  { href: "/discover", label: "Discover" },
   { href: "#board", label: "The board" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#questions", label: "Good questions" },

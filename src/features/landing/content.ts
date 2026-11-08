@@ -4,10 +4,11 @@ import camera from "../../../public/designs/assets/camera.jpg";
 
 export { backpack };
 
-// Illustrative marketing content, never a fallback for live organization reports.
+// Explicit examples for the landing page and Discover preview, never a live-data fallback.
 export const sampleReports = [
   {
     id: "backpack",
+    occurredOn: "2026-11-06",
     title: "Someone’s sidekick.",
     name: "Navy backpack",
     status: "found",
@@ -20,6 +21,7 @@ export const sampleReports = [
   },
   {
     id: "headphones",
+    occurredOn: "2026-11-05",
     title: "Missing your beats?",
     name: "Over-ear headphones",
     status: "found",
@@ -32,6 +34,7 @@ export const sampleReports = [
   },
   {
     id: "camera",
+    occurredOn: "2026-11-04",
     title: "Memories on the run.",
     name: "Black camera",
     status: "lost",
@@ -66,7 +69,7 @@ export const faqs = [
   {
     question: "Can I post a lost or found item yet?",
     answer:
-      "Start with Post an item to log in or create an account. Verify your email and get community access approved. The reporting form is coming next; if you need help with an item now, contact your organization’s lost-and-found team.",
+      "Yes. Open Post an item, sign in with a verified account, and enter the item details. You can upload and select photos or videos before submitting. Reports are saved for review. Eligible published found items accept private ownership claims; live board publishing and staff decisions are still being prepared.",
   },
   {
     question: "What should I do if I find something?",

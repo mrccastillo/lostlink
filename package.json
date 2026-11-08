@@ -9,6 +9,9 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
+    "test:dialog": "node --test tests/dialog.browser.mjs",
+    "test:post-form": "node --import tsx --test tests/post-form.browser.mjs",
+    "test:claims": "node --test tests/claims.browser.mjs",
     "media:cleanup": "node --env-file=.env.local --conditions=react-server --import tsx scripts/cleanup-media.ts"
   },
   "dependencies": {
