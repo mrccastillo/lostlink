@@ -16,7 +16,7 @@ These instructions apply throughout the repository. Preserve the generated Next.
 
 - Read `PRD.md` for scope, roles, feature acceptance criteria, and privacy requirements. Keep implementation and documentation consistent; identify material scope changes explicitly.
 - The installed stack is Next.js App Router, React, TypeScript, Tailwind CSS, and ESLint. Use npm and maintain `package-lock.json`.
-- Supabase, Zod, transactional email, and additional test tooling are planned recommendations in the PRD, not existing integrations. Check `package.json` and the code before assuming a service or library is available.
+- MongoDB and Better Auth are the selected database and authentication stack. Resend handles verification and recovery emails. Credentials belong in `.env.local`; `.env.example` documents required names. Tests use an isolated MongoDB replica set and a captured email sender. Check `package.json` and the code before assuming other integrations exist.
 - Prefer the smallest complete solution that satisfies the requirement. Avoid speculative abstractions, extra services, unrelated refactors, and dependencies without a concrete need.
 - Inspect nearby code and installed framework documentation before selecting an API. Use official documentation for guidance that is absent locally; do not guess version-sensitive behavior.
 
@@ -62,7 +62,7 @@ Apply these principles to reduce the cost of understanding, testing, and changin
 
 - Verify authentication, organization membership, record ownership, and required role at every server read or mutation that handles protected data. Navigation guards and hidden buttons do not authorize an operation.
 - Derive actor identity and privileges from a verified server session and trusted records. Never accept a client-supplied user ID, organization ID, or role as proof of permission.
-- When Supabase is introduced, enable row-level security on protected tables and storage objects. Test policies using ordinary user credentials; privileged service credentials bypass those policies.
+- MongoDB does not provide PostgreSQL-style row-level security. Enforce organization, ownership, verified email, and membership checks in every protected server operation. Roles and membership status must never be accepted from account creation or profile update input. Test authorization using ordinary member sessions.
 - Keep server secrets out of client imports, `NEXT_PUBLIC_*` variables, logs, source control, and error responses. Document required variable names using placeholders and allow a safe example file through `.gitignore` if one is added.
 - Return explicit public data projections. Keep serial numbers, hidden identifiers, verification answers, proof documents, and contact details out of public reports, search indexes, matching explanations, analytics, and logs.
 - Authorize private file access before issuing short-lived signed URLs. Validate file content, size, and type; use generated storage paths and clean up abandoned uploads. Follow the upload limits in `PRD.md`.
@@ -71,7 +71,7 @@ Apply these principles to reduce the cost of understanding, testing, and changin
 
 ## Database integrity and side effects
 
-- Make schema changes through versioned migrations. Use foreign keys, unique constraints, and database checks to enforce invariants rather than relying only on application code.
+- Make schema and index changes through versioned, idempotent setup code. Use MongoDB unique indexes, document validation, explicit reference checks, and transactions to enforce invariants. Use Atlas or a replica set for transactions; do not assume MongoDB has relational foreign keys.
 - Use parameterized queries or typed query builders. Allowlist sort and filter fields instead of interpolating user input into queries.
 - Use transactions for claim decisions, item reservations, returns, and their audit events. Protect against concurrent approvals and repeated submissions with database constraints and idempotency where appropriate.
 - Claim approval reserves an item; only a recorded physical handoff marks it returned. Suggested matches never prove ownership or authorize a claim.

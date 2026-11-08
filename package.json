@@ -7,12 +7,25 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "typecheck": "next typegen && tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:dialog": "node --test tests/dialog.browser.mjs",
+    "test:post-form": "node --import tsx --test tests/post-form.browser.mjs",
+    "test:claims": "node --test tests/claims.browser.mjs",
+    "media:cleanup": "node --env-file=.env.local --conditions=react-server --import tsx scripts/cleanup-media.ts"
   },
   "dependencies": {
+    "@better-auth/mongo-adapter": "^1.7.12",
+    "better-auth": "^1.7.12",
+    "cloudinary": "^2.11.0",
+    "file-type": "^21.3.4",
+    "mongodb": "^7.7.0",
     "next": "16.4.3",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
+    "sonner": "^2.0.8"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
@@ -21,7 +34,9 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
+    "mongodb-memory-server": "^11.3.0",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

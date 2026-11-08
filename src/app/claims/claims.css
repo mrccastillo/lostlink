@@ -1,0 +1,52 @@
+.claim-main { max-width: 880px; margin: auto; padding: 32px 40px 72px; }
+.claim-back { display: inline-block; margin-bottom: 28px; color: var(--muted); font-size: 12px; }
+.claim-back:hover { text-decoration: underline; text-underline-offset: 4px; }
+.claim-page-heading .eyebrow { font-size: 10px; letter-spacing: .08em; margin-bottom: 12px; }
+.claim-page-heading h1 { font-size: clamp(30px, 3.3vw, 44px); letter-spacing: -.045em; line-height: 1.15; font-weight: 600; margin: 0 0 14px; }
+.claim-page-heading > p:last-child { font-size: 14px; line-height: 1.7; color: var(--muted); }
+.claim-preview-banner { margin-top: 24px; padding: 16px 18px; background: #edf2ac; border-left: 3px solid var(--ink); }
+.claim-preview-banner strong { font: 10px "Courier New", monospace; }
+.claim-preview-banner p { margin-top: 6px; font-size: 12px; line-height: 1.7; }
+.claim-progress { border-block: 1px solid #c1c1b5; padding: 22px 0; margin-block: 28px; }
+.claim-progress-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+.claim-progress-heading h2 { font-size: 14px; font-weight: 600; text-transform: capitalize; }
+.claim-progress-heading > span { font: 9px "Courier New", monospace; color: var(--muted); }
+.claim-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); list-style: none; margin: 28px 0 20px; padding: 0; }
+.claim-steps li { text-align: center; position: relative; }
+.claim-steps li::before { content: ""; position: absolute; top: 15px; left: -50%; width: 100%; height: 1px; background: #b3b5a7; z-index: -1; }
+.claim-steps li:first-child::before { display: none; }
+.claim-steps { isolation: isolate; }
+.claim-steps li > span { display: grid; place-items: center; width: 32px; height: 32px; margin: auto; border: 1px solid #b3b5a7; background: var(--paper); font: 12px "Courier New", monospace; }
+.claim-steps li.is-current > span { background: var(--acid); border-color: var(--ink); }
+.claim-steps p { margin-top: 10px; font-size: 11px; }
+.claim-progress-note { text-align: center; font-size: 12px; color: var(--muted); line-height: 1.7; }
+.claim-item-summary { display: flex; align-items: center; gap: 18px; border: 1px solid #c1c1b5; padding: 18px; margin-bottom: 26px; }
+.claim-item-summary > img { width: 88px; height: 88px; object-fit: cover; }
+.claim-item-summary > div { min-width: 0; }
+.claim-item-summary .eyebrow { font-size: 9px; margin-bottom: 7px; }
+.claim-item-summary h2 { font-weight: 600; font-size: 17px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.claim-item-summary p:not(.eyebrow) { font-size: 12px; color: var(--muted); line-height: 1.7; }
+.claim-private-label { margin-left: auto; align-self: flex-start; white-space: nowrap; font: 8px "Courier New", monospace; background: #e6e4d9; padding: 6px; }
+.claim-summary-icon { display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0; background: var(--acid); font-size: 30px; }
+.claim-form { border: 1px solid #c1c1b5; padding: 26px; background: #fbf9f1; }
+.claim-form-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 26px; padding-bottom: 18px; border-bottom: 1px solid #d4d3c9; }
+.claim-form-heading h2 { font-weight: 600; font-size: 16px; }
+.claim-form-heading > span { font-size: 11px; color: var(--muted); }
+.claim-form .report-field { margin-bottom: 24px; }
+.claim-optional { font-weight: 400; color: var(--muted); }
+.claim-confirmation { display: flex; align-items: flex-start; gap: 10px; font-size: 12px; line-height: 1.7; margin: 24px 0; }
+.claim-confirmation input { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--ink); }
+.claim-privacy { background: #eeeddc; padding: 18px; margin: 20px 0; font-size: 13px; line-height: 1.7; border-left: 3px solid var(--ink); }
+.claim-privacy strong { font-weight: 600; }
+.claim-privacy p { font-size: 12px; margin-top: 5px; color: var(--muted); }
+.claim-submit { width: 100%; justify-content: space-between; font-size: 13px; white-space: normal; box-shadow: none; }
+.claim-submit:disabled { opacity: .55; cursor: default; }
+.claim-success { margin-top: 20px; font-size: 13px; line-height: 1.8; padding: 16px; background: #edf2ac; }
+.claim-preview-upload > p { font-size: 12px; font-weight: 600; margin-bottom: 10px; }
+.claim-preview-upload .media-dropzone { font-size: 13px; padding: 22px; color: var(--muted); }
+.claim-preview-upload .media-dropzone p { font-size: 11px; margin-top: 6px; }
+.claim-list { margin-top: 30px; display: grid; gap: 14px; }
+.claim-list a { display: flex; justify-content: space-between; gap: 20px; padding: 20px 0; border-bottom: 1px solid #c1c1b5; font-size: 14px; }
+.claim-list span { text-transform: capitalize; font: 11px "Courier New", monospace; }
+@media (max-width: 760px) { .claim-main { padding: 26px 20px 48px; } .claim-private-label { display: none; } .claim-form { padding: 20px; } }
+@media (max-width: 400px) { .claim-item-summary { padding: 12px; gap: 12px; } .claim-item-summary > img { width: 60px; height: 60px; } .claim-item-summary h2 { font-size: 15px; } .claim-form { padding: 16px; } }
