@@ -51,6 +51,8 @@ test("configuration fails closed and redirects stay on known application routes"
     assert.equal(safeReturnPath(path), "/discover");
   assert.equal(safeReturnPath("/"), "/discover");
   assert.equal(safeReturnPath("/discover"), "/discover");
+  assert.equal(safeReturnPath("/discover?type=matches"), "/discover?type=matches");
+  assert.equal(safeReturnPath("/discover?type=matches&next=https://evil.test"), "/discover");
   assert.equal(safeReturnPath("/post"), "/discover?compose=1");
   assert.equal(safeReturnPath("/discover?compose=1"), "/discover?compose=1");
   assert.equal(safeReturnPath("/discover?compose=1&next=https://evil.test"), "/discover");

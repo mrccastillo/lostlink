@@ -8,7 +8,7 @@ import { adminQueues } from "@/features/admin/navigation";
 import { ADMIN_DASHBOARD_PATH } from "@/lib/auth/policy";
 
 const links = [
-  { key: "admin", label: "Admin dashboard", href: ADMIN_DASHBOARD_PATH },
+  { key: "admin", label: "Dashboard", href: ADMIN_DASHBOARD_PATH },
   ...adminQueues.map(queue => ({ ...queue, href: `${ADMIN_DASHBOARD_PATH}/${queue.key}` })),
 ] as const;
 
@@ -22,7 +22,7 @@ export function AdminNavigationLinks() {
 
   return (
     <>
-      <p ref={heading} className="discover-nav-label admin-nav-label">Administration</p>
+      <p ref={heading} className="discover-nav-label admin-nav-label">Admin tools</p>
       {links.map(({ key, label, href }) => {
         const current = pathname === href || (key !== "admin" && pathname.startsWith(href + "/"));
         return (

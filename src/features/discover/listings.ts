@@ -11,6 +11,7 @@ type Media = { _id: string; reportId: string; resourceType: "image" | "video" };
 export type Listing = Pick<Report, "type" | "title" | "location" | "category" | "description" | "occurredOn" | "lifecycle"> & {
   id: string; canClaim: boolean; media: { url: string; kind: Media["resourceType"] }[];
 };
+export type ListingRow = Omit<Listing, "media" | "id"> & Pick<PublishedReport, "_id" | "approvedMedia">;
 
 const PAGE_SIZE = 18;
 const titleCollation = { locale: "en", strength: 3 };
@@ -33,6 +34,20 @@ async function ensureBrowseIndexV1(db: Db) {
 
 function input(value: Query[string]) {
   return typeof value === "string" ? value.trim().slice(0, 120) : "";
+}
+
+export async function attachListingMedia(db: Db, rows: ListingRow[]): Promise<Listing[]> {
+  const ids = rows.flatMap(row => row.approvedMedia ?? []);
+  const files = ids.length ? await db.collection<Media>("report_media").find({
+    _id: { $in: ids }, reportId: { $in: rows.map(row => row._id) }, resourceType: { $in: ["image", "video"] },
+  }, { projection: { reportId: 1, resourceType: 1 } }).toArray() : [];
+  const filesById = new Map(files.map(file => [file._id, file]));
+  return rows.map(({ _id, approvedMedia, ...fields }) => ({
+    ...fields, id: _id, media: (approvedMedia ?? []).flatMap(id => {
+      const file = filesById.get(id);
+      return file?.reportId === _id ? [{ kind: file.resourceType, url: `/api/case-media/published/${_id}/${id}` }] : [];
+    }),
+  }));
 }
 
 export async function listPublished(params: Query) {
@@ -63,19 +78,10 @@ export async function listPublished(params: Query) {
   const requested = Number(input(params.page));
   const page = Number.isSafeInteger(requested) ? Math.min(pages, Math.max(1, requested)) : 1;
   const direction = sort === "az" ? 1 : -1;
-  const rows = await reports.find({ ...filter, ...(type !== "all" && { type }) }).project<Omit<Listing, "media" | "id"> & Pick<PublishedReport, "_id" | "approvedMedia">>({
+  const rows = await reports.find({ ...filter, ...(type !== "all" && { type }) }).project<ListingRow>({
     title: 1, type: 1, category: 1, location: 1, description: 1, occurredOn: 1, lifecycle: 1, approvedMedia: 1,
     canClaim: { $and: [{ $eq: ["$type", "found"] }, { $eq: ["$lifecycle", "open"] }, { $ne: ["$ownerId", { $literal: session.user.id }] }] },
   }).collation(titleCollation).sort({ title: direction, _id: direction }).skip((page - 1) * PAGE_SIZE).limit(PAGE_SIZE).toArray();
-  const ids = rows.flatMap(row => row.approvedMedia ?? []);
-  const files = ids.length ? await db.collection<Media>("report_media").find({
-    _id: { $in: ids }, reportId: { $in: rows.map(row => row._id) }, resourceType: { $in: ["image", "video"] },
-  }, { projection: { reportId: 1, resourceType: 1 } }).toArray() : [];
-  const items: Listing[] = rows.map(({ _id, approvedMedia, ...fields }) => ({
-    ...fields, id: _id, media: (approvedMedia ?? []).flatMap(id => {
-      const file = files.find(entry => entry._id === id && entry.reportId === _id);
-      return file ? [{ kind: file.resourceType, url: `/api/case-media/published/${_id}/${id}` }] : [];
-    }),
-  }));
+  const items = await attachListingMedia(db, rows);
   return { items, filters, page, pages, counts, type, locations: suggestions.map(row => row._id) } as const;
 }

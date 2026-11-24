@@ -1,5 +1,6 @@
 import { seedPublishedReports, startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -9,7 +10,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 
 // Run after npm run build against an isolated account.
-test("published found-item claim links submit private proof for review", { timeout: 90_000 }, async (context) => {
+test("My matches opens a found item and submits private proof for review", { timeout: 90_000 }, async (context) => {
   const executable = [process.env.BROWSER_EXECUTABLE,
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
@@ -59,7 +60,25 @@ test("published found-item claim links submit private proof for review", { timeo
     await send("Network.setCookies", { cookies });
     await send("Page.navigate", { url: `${baseURL}/discover?q=headphones` });
     await until("document.readyState === 'complete' && !!document.querySelector('.discover-heading button')", "Discover did not load");
-    await delay(1500);
+    const matchesLink = 'nav[aria-label="Discover views"] a[href="/discover?type=matches"]';
+    await until(`!!document.querySelector(${JSON.stringify(matchesLink)})`, "My matches tab did not load");
+    await evaluate(`document.querySelector(${JSON.stringify(matchesLink)}).click()`);
+    await until("document.querySelector('.discover-empty h2')?.textContent === 'You have no open lost reports'", "Matches empty state did not appear");
+
+    const member = await fixture.db.collection("user").findOne({ email: fixture.credentials.email });
+    assert.ok(member);
+    await fixture.db.collection("reports").insertOne({
+      ...found, _id: randomUUID(), type: "lost", ownerId: String(member._id), moderation: "pending",
+      title: "My over-ear headphones",
+    });
+    await send("Page.navigate", { url: `${baseURL}/discover?type=matches` });
+    await until("document.readyState === 'complete' && !!document.querySelector('.discover-match .discover-item-button')", "Found item match did not appear");
+    assert.equal(await evaluate("document.querySelector('.discover-match-group h2').textContent"), "My over-ear headphones");
+    assert.equal(await evaluate("document.querySelector('.discover-match-reasons').textContent.includes('Similar title')"), true);
+    for (const width of [390, 320, 1280]) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height: 850, deviceScaleFactor: 1, mobile: width < 500 });
+      await until("document.documentElement.scrollWidth <= document.documentElement.clientWidth", 'My matches overflows at ' + width);
+    }
     await evaluate("document.querySelector('.discover-item-button').click()");
     await until(`!!document.querySelector('dialog[open] a[href="/claims/${found._id}"]')`, 'Found item has no claim button');
     await evaluate(`document.querySelector('dialog[open] a[href="/claims/${found._id}"]').click()`);

@@ -206,7 +206,7 @@ test("login, workspace navigation, posting modal, and sign-out work without retr
       assert.equal(await evaluate("window.workspaceSidebar.querySelectorAll('.navigation-pending').length"), 0, "Sidebar still shows a navigation spinner");
     }
     await evaluate(`window.adminSidebar.querySelector('${desktop} a[href="/admin/pickups"]').click()`);
-    await until("location.pathname === '/admin/pickups' && [...document.querySelectorAll('.case-main h1')].some(element => element.checkVisibility() && element.textContent === 'Reserved pickups')", "Pickups did not reopen");
+    await until("location.pathname === '/admin/pickups' && [...document.querySelectorAll('.case-main h1')].some(element => element.checkVisibility() && element.textContent === 'Manage pickups')", "Pickups did not reopen");
     await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
     await evaluate("window.adminSidebar.querySelector('.discover-mobile-nav summary').click()");
     await checkAdminNav(mobile, "/admin/pickups");

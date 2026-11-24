@@ -63,6 +63,8 @@ Open `/discover` from the homepage navigation or Hit the board button. The page 
 
 Discover lists published community reports for verified members. Pending and hidden reports stay off the board. Staff review the listing and choose which attachments members may access.
 
+The **My matches** tab groups up to five suggestions under each of your open lost reports, including reports awaiting review. It ranks other members' published, open found reports using similar words in titles and descriptions, location, category, and the number of days between loss and discovery. Candidates must be found on the same day or within the next 30 days. Suggestions show the contributing signals and open the usual item and ownership claim flow.
+
 ## Authentication setup
 
 Email/password authentication uses Better Auth with its [MongoDB adapter](https://better-auth.com/docs/adapters/mongo). Accounts, password hashes, verification records, sessions, and rate limits are stored in MongoDB. Use MongoDB Atlas or a replica set; auth operations use transactions.
@@ -107,11 +109,11 @@ npm run auth:set-role -- admin staff@example.com
 npm run auth:set-role -- member staff@example.com
 ```
 
-Standard sign-in opens `/admin` for verified administrators and `/discover` for members. The server checks the current account role on every dashboard request. The admin dashboard shows pending reports and claims, reserved pickups, completed returns, recent pending reports, and recent staff decisions in the LostLink community. The queue cards and activity links open the relevant work. The Administration sidebar links to three staff queues.
+Standard sign-in opens `/admin` for verified administrators and `/discover` for members. The server checks the current account role on every dashboard request. The admin dashboard shows pending reports and claims, reserved pickups, completed returns, recent pending reports, and recent staff decisions in the LostLink community. The queue cards and activity links open the relevant work. The **Admin tools** section of the sidebar links to the dashboard and three staff queues.
 
-- **Report moderation** at `/admin/reports` lets staff review a report and its attachments, publish it to Discover, or hide it with a reason.
-- **Claim review** at `/admin/claims` lets staff inspect private proof, compare competing requests, and approve or reject a claim. Approval reserves an open found item for one claimant.
-- **Reserved pickups** at `/admin/pickups` lets staff record a physical handoff or cancel a reservation. Recording the handoff fulfills the claim and marks the item returned. Cancellation reopens the item.
+- **Review reports** at `/admin/reports` lets staff review a report and its attachments, publish it to Discover, or hide it with a reason.
+- **Review claims** at `/admin/claims` lets staff inspect private proof, compare competing requests, and approve or reject a claim. Approval reserves an open found item for one claimant.
+- **Manage pickups** at `/admin/pickups` lets staff record a physical handoff or cancel a reservation. Recording the handoff fulfills the claim and marks the item returned. Cancellation reopens the item.
 
 Case pages show an audit history. Use My Posts and My Claims to see member-visible outcomes. Before launch, the organization must confirm its pickup location and evidence-retention period. After building, `npm run test:admin` exercises the staff lifecycle against isolated accounts.
 

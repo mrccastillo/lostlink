@@ -5,6 +5,7 @@ import { REPORT_UUID } from "@/features/reports/policy";
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;
 export const POST_LOGIN_PATH = "/discover";
+export const DISCOVER_MATCHES_PATH = "/discover?type=matches";
 export const ADMIN_DASHBOARD_PATH = "/admin";
 export const MEMBER_ROLE = "member";
 export const ADMIN_ROLE = "admin";
@@ -14,6 +15,7 @@ export const POST_ITEM_LOGIN_PATH = `/login?next=${encodeURIComponent(POST_MODAL
 // Only known application destinations may be used after authentication.
 export function safeReturnPath(value: unknown): string {
   if (value === POST_MODAL_PATH || value === "/post") return POST_MODAL_PATH;
+  if (value === DISCOVER_MATCHES_PATH) return DISCOVER_MATCHES_PATH;
   if (value === ADMIN_DASHBOARD_PATH) return ADMIN_DASHBOARD_PATH;
   if (typeof value === "string" && value.startsWith("/admin/")) {
     const [queue, id, ...extra] = value.slice(7).split("/");

@@ -263,7 +263,8 @@ test("members and staff take a found report from submission through physical pic
     const post = Array.from(document.querySelectorAll("article")).find(item => item.querySelector("h2")?.innerText === title);
     if (!post) return false;
     if (!post.querySelector("details").open) post.querySelector("summary").click();
-    return post.innerText.includes("Published") && post.innerText.includes("returned");
+    const itemStatus = Array.from(post.querySelectorAll("dt")).find(label => label.innerText === "Item status");
+    return post.innerText.includes("Published") && itemStatus?.nextElementSibling?.innerText.trim().toLowerCase() === "returned";
   }, title), "returned item in the finder's My Posts");
 
   await visit(reportPath, fixture);

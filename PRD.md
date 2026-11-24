@@ -132,6 +132,8 @@ User-requested scope addition: Cloudinary also supports MP4 and WebM videos up t
 
 Verified members browse published community reports on Discover and can claim an eligible found item. The landing page uses illustrative examples. Members submit reports with up to five attachments and see the moderation result in My Posts. Publication and hiding are staff actions.
 
+Discover's **My matches** tab ranks other members' published, open found reports for each of the signed-in member's open lost reports under review or published. The on-demand baseline considers the 250 closest compatible found dates per lost report, from the loss date through 30 days later, and ranks up to five suggestions by title, description, location, category, and date proximity. Explanations use generic labels. Claims follow the existing staff review process. The labeled top-five recall evaluation remains pending.
+
 | ID | Feature | Revised technical tasks | Acceptance criteria |
 | --- | --- | --- | --- |
 | 3.1 | Notification Alerts & Email Updates | Add persisted read/unread notifications for claim decisions, handoff events, and match suggestions. Add transactional email through an outbox with deduplication, retries, and delivery logging. | A committed status change creates one logical notification per recipient. Email failure does not roll back a claim decision. Retried delivery does not create duplicate in-app notifications. Email contains a secure link rather than private evidence or answers. |
