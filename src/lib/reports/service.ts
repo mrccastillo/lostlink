@@ -3,7 +3,7 @@ import { REPORT_CATEGORIES, REPORT_UUID, ReportError, validateReport, type Repor
 import { transferTemporaryMedia } from "@/lib/media/transfer";
 
 type Actor = { id: string; emailVerified: boolean };
-type Report = Omit<ReportInput, "requestId"> & { _id: string; ownerId: string; organization: "community"; moderation: "pending" | "published" | "hidden"; lifecycle: "open" | "reserved" | "returned" | "archived"; createdAt: Date };
+export type Report = Omit<ReportInput, "requestId"> & { _id: string; ownerId: string; organization: "community"; moderation: "pending" | "published" | "hidden"; lifecycle: "open" | "reserved" | "returned" | "archived"; createdAt: Date };
 
 export function createReportService(db: Db, client: MongoClient) {
   return {

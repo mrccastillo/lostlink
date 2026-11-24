@@ -1,9 +1,10 @@
 import "server-only";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { getSessionCookie } from "better-auth/cookies";
 import { getAuth } from "./server";
 
-export async function getCurrentSession() {
+export const getCurrentSession = cache(async () => {
   const requestHeaders = await headers();
   if (!getSessionCookie(requestHeaders, { cookiePrefix: "lostlink" }))
     return null;
@@ -15,4 +16,4 @@ export async function getCurrentSession() {
     console.error("AUTH_SESSION_UNAVAILABLE");
     return null;
   }
-}
+});

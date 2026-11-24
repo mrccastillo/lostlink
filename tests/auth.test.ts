@@ -1,15 +1,19 @@
 import assert from "node:assert/strict";
-import { createPublicKey, verify } from "node:crypto";
+import { createPublicKey, randomBytes, randomUUID, verify } from "node:crypto";
 import { test } from "node:test";
 import { MongoClient } from "mongodb";
 import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { readAuthConfig, type AuthConfig } from "../src/lib/auth/config";
 import {
+  accountHome,
+  canAccessAdmin,
   canPost,
   safeReturnPath,
 } from "../src/lib/auth/policy";
 import { ensureAuthIndexes } from "../src/lib/auth/indexes";
 import { createAuth } from "../src/lib/auth/create-auth";
+import { setAccountRole } from "../src/lib/auth/provision-role";
+import { ensureAdminOverviewIndexesV3, readAdminOverview } from "../src/features/admin/overview";
 
 test("configuration fails closed and redirects stay on known application routes", () => {
   assert.equal(readAuthConfig({}), null);
@@ -17,10 +21,15 @@ test("configuration fails closed and redirects stay on known application routes"
     MONGODB_URI: "mongodb://127.0.0.1:27017",
     BETTER_AUTH_SECRET: "x".repeat(48),
     BETTER_AUTH_URL: "http://localhost:3000",
-    RESEND_API_KEY: "test-only",
-    AUTH_EMAIL_FROM: "LostLink <auth@example.test>",
+    BREVO_API_KEY: "test-only",
+    BREVO_SENDER_EMAIL: "auth@example.test",
   };
-  assert.ok(readAuthConfig(env));
+  assert.equal(readAuthConfig(env)?.emailSenderAddress, "auth@example.test");
+  assert.equal(readAuthConfig({ ...env, BREVO_API_KEY: "" }), null);
+  assert.equal(
+    readAuthConfig({ ...env, BREVO_SENDER_EMAIL: "LostLink <auth@example.test>" }),
+    null,
+  );
   assert.equal(readAuthConfig({ ...env, BETTER_AUTH_SECRET: "short" }), null);
   assert.equal(
     readAuthConfig({ ...env, BETTER_AUTH_URL: "http://public.example" }),
@@ -47,6 +56,10 @@ test("configuration fails closed and redirects stay on known application routes"
   assert.equal(safeReturnPath("/discover?compose=1&next=https://evil.test"), "/discover");
   assert.equal(safeReturnPath("/claims"), "/claims");
   assert.equal(safeReturnPath("/my-posts"), "/my-posts");
+  assert.equal(safeReturnPath("/admin"), "/admin");
+  assert.equal(safeReturnPath("/admin/pickups"), "/admin/pickups");
+  assert.equal(safeReturnPath("/admin/claims/../admin"), "/discover");
+  assert.equal(safeReturnPath("/admin?next=https://evil.test"), "/discover");
   assert.equal(safeReturnPath("/my-posts?next=https://evil.test"), "/discover");
   assert.equal(safeReturnPath("/claims/12345678-1234-1234-1234-123456789abc"), "/claims/12345678-1234-1234-1234-123456789abc");
   assert.equal(safeReturnPath("/claims/12345678-1234-1234-1234-123456789abc?next=https://evil.test"), "/discover");
@@ -72,10 +85,10 @@ test(
       const config: AuthConfig = {
         mongoUri: replicaSet.getUri(),
         databaseName: db.databaseName,
-        secret: "isolated-test-secret-with-more-than-32-characters",
+        secret: randomBytes(32).toString("base64"),
         baseURL: "http://localhost:3000",
         emailApiKey: "test-only",
-        emailFrom: "auth@example.test",
+        emailSenderAddress: "auth@example.test",
       };
       const emails: { to: string; subject: string; text: string }[] = [];
       const auth = createAuth({
@@ -315,6 +328,98 @@ test(
             { origin: "https://evil.test" },
           );
           assert.equal(foreign.status, 403);
+        },
+      );
+
+      await t.test(
+        "only verified administrators can read the scoped overview and role changes apply to an existing session",
+        async () => {
+          const headers = new Headers({ cookie });
+          const getUser = async () => {
+            const session = await auth.api.getSession({ headers });
+            assert.ok(session);
+            return session.user;
+          };
+          const getDatabase = async () => db;
+          const member = await getUser();
+          assert.equal(accountHome(member), "/discover");
+          assert.equal(await readAdminOverview(member, async () => {
+            assert.fail("Member access must stop before database reads");
+          }), null);
+
+          const unverifiedEmail = "unverified@school.test";
+          assert.equal((await request("/sign-up/email", {
+            name: "Unverified account", email: unverifiedEmail, password,
+          })).status, 200);
+          assert.equal(await setAccountRole(db, unverifiedEmail, "admin"), false);
+          assert.equal(canAccessAdmin({ emailVerified: false, role: "admin" }), false);
+          assert.equal(await setAccountRole(db, email.toUpperCase(), "admin"), true);
+          const admin = await getUser();
+          assert.equal(accountHome(admin), "/admin");
+
+          await ensureAdminOverviewIndexesV3(db);
+          const pending = {
+            organization: "community", moderation: "pending", title: "Report awaiting review",
+            type: "found", category: "Electronics", description: "Private report text",
+            ownerId: "member-id", createdAt: new Date(),
+          };
+          await db.collection("reports").insertMany([
+            ...Array.from({ length: 11 }, () => ({ ...pending })),
+            { ...pending, moderation: "published" },
+            { ...pending, organization: "other" },
+          ]);
+          await db.collection("claims").insertMany([
+            { organization: "community", status: "pending", identifyingDetail: "Private answer" },
+            { organization: "community", status: "withdrawn" },
+            { organization: "other", status: "pending" },
+            { organization: "community", status: "approved" },
+            { organization: "community", status: "fulfilled" },
+            { organization: "other", status: "approved" },
+          ]);
+          await db.collection("return_events").insertMany([
+            { organization: "community", notes: "Private handoff notes" },
+            { organization: "community", notes: "Private pickup location" },
+            { organization: "other" },
+          ]);
+          const entityId = randomUUID();
+          const event = {
+            organization: "community", entityId, createdAt: new Date(1000),
+            actorId: "private actor", reason: "private reason", href: "https://private.test",
+          };
+          const newer = new Date(2000);
+          const { insertedIds } = await db.collection("audit_events").insertMany([
+            { ...event, action: "report.published", createdAt: newer },
+            { ...event, action: "report.hidden" },
+            { ...event, action: "claim.approved" },
+            { ...event, action: "claim.rejected" },
+            { ...event, action: "claim.cancelled", entityId: "../private?proof=secret" },
+            { ...event, action: "claim.fulfilled" },
+            { ...event, action: "claim.submitted", createdAt: newer },
+            { ...event, action: "report.hidden", organization: "other", createdAt: newer },
+          ]);
+          const overview = await readAdminOverview(admin, getDatabase);
+          assert.ok(overview);
+          assert.equal(overview.pendingReports, 11);
+          assert.equal(overview.pendingClaims, 1);
+          assert.equal(overview.reservedPickups, 1);
+          assert.equal(overview.completedReturns, 2);
+          const claimPath = `/admin/claims/${entityId}`;
+          assert.deepEqual(overview.recentActivity, [
+            { id: insertedIds[0].toHexString(), label: "Report published", href: `/admin/reports/${entityId}`, createdAt: newer },
+            { id: insertedIds[5].toHexString(), label: "Return recorded", href: claimPath, createdAt: event.createdAt },
+            { id: insertedIds[4].toHexString(), label: "Reservation cancelled", href: "/admin/claims", createdAt: event.createdAt },
+            { id: insertedIds[3].toHexString(), label: "Claim rejected", href: claimPath, createdAt: event.createdAt },
+            { id: insertedIds[2].toHexString(), label: "Claim approved", href: claimPath, createdAt: event.createdAt },
+          ]);
+          assert.equal(overview.recentReports.length, 10);
+          assert.deepEqual(Object.keys(overview.recentReports[0]).sort(), [
+            "_id", "createdAt", "title", "type",
+          ]);
+
+          assert.equal(await setAccountRole(db, email, "member"), true);
+          const demoted = await getUser();
+          assert.equal(accountHome(demoted), "/discover");
+          assert.equal(await readAdminOverview(demoted, getDatabase), null);
         },
       );
 

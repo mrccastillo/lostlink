@@ -4,7 +4,7 @@ import camera from "../../../public/designs/assets/camera.jpg";
 
 export { backpack };
 
-// Explicit examples for the landing page and Discover preview, never a live-data fallback.
+// Illustrative landing-page items are kept separate from published community reports.
 export const sampleReports = [
   {
     id: "backpack",
@@ -69,7 +69,7 @@ export const faqs = [
   {
     question: "Can I post a lost or found item yet?",
     answer:
-      "Yes. Open Post an item, sign in with a verified account, and enter the item details. You can upload and select photos or videos before submitting. Reports are saved for review. Eligible published found items accept private ownership claims; live board publishing and staff decisions are still being prepared.",
+      "Yes. Open Post an item, sign in with a verified account, and enter the item details. You can include photos or videos. Staff review the report before publishing it on Discover. Check My posts for its review status.",
   },
   {
     question: "What should I do if I find something?",

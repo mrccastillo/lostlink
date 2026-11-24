@@ -3,7 +3,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { AppSidebar } from "@/components/app-sidebar";
 import { sampleReports } from "@/features/landing/content";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getClaimService } from "@/lib/claims/runtime";
@@ -12,24 +11,23 @@ import { ClaimStatus } from "@/features/claims/claim-status";
 import { claimPath } from "@/features/claims/policy";
 import { REPORT_UUID } from "@/features/reports/policy";
 import type { ClaimItem, ClaimSummary } from "@/lib/claims/service";
-import "../../discover/discover.css";
 import "@/features/post/post-modal.css";
-import "../claims.css";
+import "../../../claims/claims.css";
 
 export const metadata: Metadata = { title: "Verify ownership — LostLink", robots: { index: false, follow: false } };
 
 async function Content({ params }: { params: Promise<{ reportId: string }> }) {
   const { reportId } = await params;
   const example = sampleReports.find((item) => item.id === reportId && item.status === "found");
+  if (!example && !REPORT_UUID.test(reportId)) notFound();
+  const session = await getCurrentSession();
+  const next = encodeURIComponent(example ? "/discover" : claimPath(reportId));
+  if (!session) redirect(`/login?next=${next}`);
+  if (!session.user.emailVerified) redirect(`/verify-email?next=${next}`);
   let item: ClaimItem;
   let claim: ClaimSummary | null = null;
   if (example) item = { id: example.id, title: example.name, category: example.category, location: example.location, occurredOn: example.occurredOn, available: true };
   else {
-    if (!REPORT_UUID.test(reportId)) notFound();
-    const session = await getCurrentSession();
-    const next = encodeURIComponent(claimPath(reportId));
-    if (!session) redirect(`/login?next=${next}`);
-    if (!session.user.emailVerified) redirect(`/verify-email?next=${next}`);
     const service = await getClaimService();
     const data = await service.load(session.user, reportId);
     if (!data) notFound();
@@ -52,5 +50,5 @@ async function Content({ params }: { params: Promise<{ reportId: string }> }) {
   );
 }
 export default function ClaimPage(props: { params: Promise<{ reportId: string }> }) {
-  return <div className="discover-shell"><a className="skip-link" href="#claim-main">Skip to ownership verification</a><AppSidebar active="claims" /><div className="discover-workspace"><div className="discover-topbar"><span>CLAIMS & VERIFICATION</span></div><main id="claim-main" className="claim-main"><Suspense fallback={<p role="status">Loading ownership verification…</p>}><Content {...props} /></Suspense></main></div></div>;
+  return <><div className="discover-topbar"><span>CLAIMS & VERIFICATION</span></div><main id="claim-main" className="claim-main"><Suspense fallback={<p role="status">Loading ownership verification…</p>}><Content {...props} /></Suspense></main></>;
 }

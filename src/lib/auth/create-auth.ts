@@ -6,6 +6,8 @@ import type { Db, MongoClient } from "mongodb";
 import type { AuthConfig } from "./config";
 import type { SendAuthEmail } from "./email";
 import {
+  ADMIN_ROLE,
+  MEMBER_ROLE,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
 } from "./policy";
@@ -82,9 +84,9 @@ export function createAuth({
     user: {
       additionalFields: {
         role: {
-          type: ["member", "admin"],
+          type: [MEMBER_ROLE, ADMIN_ROLE],
           required: true,
-          defaultValue: "member",
+          defaultValue: MEMBER_ROLE,
           input: false,
         },
       },
@@ -102,7 +104,7 @@ export function createAuth({
               data: {
                 ...user,
                 name,
-                role: "member",
+                role: MEMBER_ROLE,
               },
             };
           },

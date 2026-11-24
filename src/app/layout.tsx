@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
 import { AppToaster } from "@/components/toasts";
-import { Suspense } from "react";
-import { PostModal } from "@/features/post/post-modal";
+import { NavigationPathnameProvider } from "@/components/navigation-pathname";
 import "./globals.css";
 
 const spaceGrotesk = Space_Grotesk({
@@ -27,11 +26,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${spaceGrotesk.variable} h-full antialiased`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} h-full antialiased`}>
       <body className="min-h-full">
-        {children}
+        <NavigationPathnameProvider>{children}</NavigationPathnameProvider>
         <AppToaster />
-        <Suspense fallback={null}><PostModal /></Suspense>
       </body>
     </html>
   );

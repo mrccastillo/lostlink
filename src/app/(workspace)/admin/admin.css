@@ -1,0 +1,152 @@
+﻿/* The queue layout and the dashboard error boundary share these base styles. */
+.admin-main {
+  max-width: 1320px;
+  padding: clamp(30px, 4vw, 56px) clamp(20px, 3vw, 42px);
+}
+
+.admin-main h1 {
+  font-size: clamp(32px, 4vw, 46px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -.06em;
+}
+
+.admin-message p {
+  margin: 16px 0 24px;
+  color: var(--muted);
+}
+
+.admin-message .button + .button { margin-left: 12px; }
+
+.admin-dashboard {
+  container-type: inline-size;
+  background: var(--paper);
+  overflow-wrap: anywhere;
+}
+
+.admin-dashboard .dashboard-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.admin-dashboard .dashboard-heading .button {
+  padding: 10px 16px;
+  font-size: .8125rem;
+}
+
+.admin-dashboard .dashboard-queues {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+  background: var(--paper);
+}
+
+.admin-dashboard .dashboard-queue {
+  position: relative;
+  display: grid;
+  justify-items: start;
+  padding: clamp(1rem, 2.4vw, 1.75rem);
+  border: 1px solid var(--ink);
+  background: #fffdf5;
+  transition: background-color 150ms ease;
+}
+
+.admin-dashboard .dashboard-queue:hover,
+.admin-dashboard .dashboard-queue:focus-visible { background: #f6f8c9; }
+
+.admin-dashboard a:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+.admin-dashboard .dashboard-icon {
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: var(--acid);
+}
+
+.admin-dashboard .dashboard-icon svg { width: 1.25rem; height: 1.25rem; }
+
+.admin-dashboard .dashboard-count {
+  margin: 1.25rem 0 .25rem;
+  font-size: clamp(2.5rem, 5vw, 3.75rem);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.055em;
+  line-height: 1;
+}
+
+.admin-dashboard .dashboard-label { font-weight: 600; }
+.admin-dashboard .dashboard-arrow { position: absolute; top: 1rem; right: 1rem; }
+
+.admin-dashboard .dashboard-returns {
+  display: flex;
+  align-items: baseline;
+  gap: .65rem;
+  margin-top: 1rem;
+  color: var(--muted);
+  font-size: .875rem;
+}
+
+.admin-dashboard .dashboard-returns strong {
+  color: var(--ink);
+  font-size: 1.125rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard .dashboard-feeds {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2rem;
+  margin-top: clamp(2rem, 4vw, 3rem);
+}
+
+.admin-dashboard .dashboard-feeds h2 {
+  padding-block: .875rem;
+  border-top: var(--rule);
+  border-bottom: 1px solid #c6c6ba;
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+
+.admin-dashboard .dashboard-feeds ul { list-style: none; padding: 0; margin: 0; }
+.admin-dashboard .dashboard-feeds li { padding: .875rem 0; border-bottom: 1px solid #d4d3c9; }
+.admin-dashboard .dashboard-feeds a { font-weight: 600; }
+.admin-dashboard .dashboard-feeds a:hover { text-decoration: underline; text-underline-offset: .2em; }
+.admin-dashboard .dashboard-feeds p { margin-top: .875rem; color: var(--muted); font-size: .875rem; }
+
+.admin-dashboard .dashboard-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .25rem .75rem;
+  margin-top: .25rem;
+  color: var(--muted);
+  font-size: .8125rem;
+}
+
+@container (max-width: 40rem) {
+  .admin-dashboard .dashboard-feeds { grid-template-columns: 1fr; }
+}
+
+@container (max-width: 32rem) {
+  .admin-dashboard .dashboard-queues { grid-template-columns: 1fr; gap: .625rem; }
+  .admin-dashboard .dashboard-queue {
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: .75rem;
+  }
+  .admin-dashboard .dashboard-label { grid-area: 1 / 2; }
+  .admin-dashboard .dashboard-count { grid-area: 1 / 3; margin: 0; font-size: 1.75rem; }
+  .admin-dashboard .dashboard-arrow { position: static; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-dashboard .dashboard-queue { transition: none; }
+}

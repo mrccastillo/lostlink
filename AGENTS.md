@@ -16,7 +16,7 @@ These instructions apply throughout the repository. Preserve the generated Next.
 
 - Read `PRD.md` for scope, roles, feature acceptance criteria, and privacy requirements. Keep implementation and documentation consistent; identify material scope changes explicitly.
 - The installed stack is Next.js App Router, React, TypeScript, Tailwind CSS, and ESLint. Use npm and maintain `package-lock.json`.
-- MongoDB and Better Auth are the selected database and authentication stack. Resend handles verification and recovery emails. Credentials belong in `.env.local`; `.env.example` documents required names. Tests use an isolated MongoDB replica set and a captured email sender. Check `package.json` and the code before assuming other integrations exist.
+- MongoDB and Better Auth are the selected database and authentication stack. Brevo handles verification and recovery emails. Credentials belong in `.env.local`; `.env.example` documents required names. Tests use an isolated MongoDB replica set and a captured email sender. Check `package.json` and the code before assuming other integrations exist.
 - Prefer the smallest complete solution that satisfies the requirement. Avoid speculative abstractions, extra services, unrelated refactors, and dependencies without a concrete need.
 - Inspect nearby code and installed framework documentation before selecting an API. Use official documentation for guidance that is absent locally; do not guess version-sensitive behavior.
 

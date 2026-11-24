@@ -1,6 +1,4 @@
-import { MongoMemoryReplSet } from "mongodb-memory-server";
-import { MongoClient } from "mongodb";
-import { createAuth } from "../src/lib/auth/create-auth.ts";
+import { startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -11,27 +9,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 
 // Run after npm run build. Uses isolated MongoDB and a separate local app; never uploads to Cloudinary.
-test("authenticated report form supports dropped previews without horizontal overflow", { timeout: 90_000 }, async () => {
+test("authenticated report form supports dropped previews without horizontal overflow", { timeout: 90_000 }, async (context) => {
   const executable = [process.env.BROWSER_EXECUTABLE,
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
   ].find((path) => path && existsSync(path));
   assert.ok(executable, "Set BROWSER_EXECUTABLE to an installed Chromium browser.");
-  const replica = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  const client = new MongoClient(replica.getUri());
-  await client.connect();
-  const baseURL = 'http://localhost:3118';
-  const config = { mongoUri: replica.getUri(), databaseName: 'isolated_preview_test', secret: 'isolated-browser-test-secret-32-characters', baseURL, emailApiKey: 'test-only', emailFrom: 'auth@example.test' };
-  const emails = [];
-  const auth = createAuth({ db: client.db(config.databaseName), client, config, sendEmail: async (email) => { emails.push(email.text); } });
-  const credentials = { email: 'preview@example.test', password: 'isolated-preview-test-password' };
-  const request = (path, body) => auth.handler(new Request(baseURL + '/api/auth' + path, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: baseURL }, body: JSON.stringify(body) }));
-  assert.equal((await request('/sign-up/email', { ...credentials, name: 'Preview Member' })).status, 200);
-  await auth.handler(new Request(emails[0].match(/https?:\/\/\S+/)[0]));
-  const login = await request('/sign-in/email', credentials);
-  const cookie = login.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
-  const app = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3118'], { windowsHide: true, stdio: 'ignore', env: { ...process.env, MONGODB_URI: config.mongoUri, MONGODB_DB: config.databaseName, BETTER_AUTH_SECRET: config.secret, BETTER_AUTH_URL: baseURL, RESEND_API_KEY: 'test-only', AUTH_EMAIL_FROM: config.emailFrom, CLOUDINARY_CLOUD_NAME: 'isolated-test', CLOUDINARY_API_KEY: 'test-only', CLOUDINARY_API_SECRET: 'test-only' } });
-  for (let n = 0; n < 60; n++) { try { await fetch(baseURL + '/discover'); break; } catch { await delay(200); } }
+  const { baseURL, cookies } = await startAuthenticatedBrowserApp(context, 3118);
   const profile = await mkdtemp(join(tmpdir(), "lostlink-dialog-test-"));
   const browser = spawn(executable, ["--headless=new", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { windowsHide: true, stdio: "ignore" });
@@ -69,10 +53,10 @@ test("authenticated report form supports dropped previews without horizontal ove
       assert.fail(label);
     }
     await send("Network.enable");
-    await send("Network.setExtraHTTPHeaders", { headers: { Cookie: cookie } });
+    await send("Network.setCookies", { cookies });
     await send("Page.enable");
     await send("Page.bringToFront");
-    await send("Page.navigate", { url: `${baseURL}/discover?q=camera` });
+    await send("Page.navigate", { url: `${baseURL}/discover` });
     await until("document.readyState === 'complete' && !!document.querySelector('.discover-heading button')", "Discover did not load");
     await delay(1500);
     await evaluate("document.querySelector('.discover-heading button').click()");
@@ -99,9 +83,6 @@ test("authenticated report form supports dropped previews without horizontal ove
     await until("document.querySelectorAll('.media-preview').length === 1", "File removal failed");
     console.log('PASS authenticated form: dropzone position, image/video previews, removal, single form, and no horizontal overflow at 1280/390/320px');
   } finally {
-    app.kill();
-    await client.close();
-    await replica.stop();
     socket?.close();
     browser.kill();
     await new Promise((resolve) => { if (browser.exitCode !== null) resolve(); else browser.once("exit", resolve); });

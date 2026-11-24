@@ -24,6 +24,31 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 28px;
 }
+
+.route-loading {
+  padding-block: 2rem;
+}
+
+.navigation-pending {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  margin-inline-start: 0.4rem;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .navigation-pending {
+    animation: navigation-spin 700ms linear infinite;
+  }
+}
+
+@keyframes navigation-spin {
+  to { transform: rotate(360deg); }
+}
 body {
   margin: 0;
   background: var(--paper);

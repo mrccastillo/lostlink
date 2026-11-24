@@ -1,0 +1,10 @@
+.sk {
+  display: block;
+  background-color: #e1dfd3;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sk { animation: workspace-pulse 1.6s ease-in-out infinite alternate; }
+}
+@keyframes workspace-pulse {
+  to { opacity: .55; }
+}

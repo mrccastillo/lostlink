@@ -36,13 +36,30 @@ export function createCloudinaryStorage(config: CloudinaryConfig): MediaStorage 
           ? { transformation: [{ flags: "strip_profile" }] }
           : {}),
       }, (error, result) => {
-        if (error || !result) return reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED"));
+        if (error || !result) {
+          // Provider messages can include asset paths and signed parameters.
+          const status = error?.http_code;
+          console.error("MEDIA_PROVIDER_UPLOAD_FAILED", {
+            status: typeof status === "number" && status >= 100 && status <= 599 ? status : undefined,
+          });
+          return reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED"));
+        }
         if (result.public_id !== publicId || result.resource_type !== media.resourceType ||
-            result.format !== media.format || !(result.width > 0) || !(result.height > 0))
+            result.format !== media.format || !(result.width > 0) || !(result.height > 0)) {
+          console.error("MEDIA_PROVIDER_RESPONSE_INVALID", {
+            publicIdMatches: result.public_id === publicId,
+            resourceTypeMatches: result.resource_type === media.resourceType,
+            formatMatches: result.format === media.format,
+            hasDimensions: result.width > 0 && result.height > 0,
+          });
           return reject(new Error("MEDIA_PROVIDER_RESPONSE_INVALID"));
+        }
         resolve();
       });
-      stream.on("error", () => reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED")));
+      stream.on("error", () => {
+        console.error("MEDIA_PROVIDER_UPLOAD_STREAM_FAILED");
+        reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED"));
+      });
       stream.end(media.bytes);
     }),
     async remove(location) {

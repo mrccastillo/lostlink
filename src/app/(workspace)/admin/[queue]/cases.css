@@ -1,0 +1,32 @@
+.case-main { max-width: 66rem; overflow-wrap: anywhere; }
+.case-main h1 { margin-block: 1rem .65rem; }
+.case-main h2 { font-size: clamp(1.25rem, 2vw, 1.65rem); font-weight: 700; letter-spacing: -.035em; }
+.case-main h3, .case-main dt, .decision-form legend { font-weight: 650; }
+.case-main h3 { margin-top: 1rem; }
+.case-main a { text-decoration: underline; text-underline-offset: .2em; }
+.case-main :is(a, button, input, textarea):focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+.case-tabs, .case-pages { display: flex; align-items: center; gap: .5rem 1rem; flex-wrap: wrap; margin-block: 1rem; }
+.case-pages:empty { display: none; }
+.case-tabs a { padding: .4rem .75rem; text-transform: capitalize; }
+.case-tabs a[aria-current] { color: white; background: var(--ink); text-decoration: none; }
+.case-list, .case-media, .case-history { list-style: none; padding: 0; }
+.case-list li { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: .35rem 1rem; padding-block: .9rem; border-bottom: 1px solid #c7c6bc; }
+.case-list a, .case-status { font-weight: 600; }
+.case-main time, .case-list p { font-size: .875rem; }
+.case-section { border-top: 1px solid var(--ink); padding-block: 1.2rem; margin-top: 1.2rem; }
+.case-section > p, .case-section > h2 { margin-bottom: .6rem; }
+.case-facts { display: flex; flex-wrap: wrap; gap: .75rem 2.5rem; margin-block: 1rem; }
+.case-facts dd, .case-answers dd { margin: 0; }
+.case-answers dt { margin-top: .8rem; }
+.case-text, .case-answers dd { white-space: pre-wrap; }
+.case-media li, .case-history li { padding-block: .5rem; }
+.case-history li + li { border-top: 1px solid #c7c6bc; }
+.decision-form { max-width: 44rem; }
+.decision-form fieldset { min-width: 0; padding: 1rem; margin: 1rem 0; border: 1px solid #a4a398; }
+.decision-form legend { padding-inline: .4rem; }
+.decision-form label { display: block; padding: .45rem 0; }
+.decision-form :is(textarea, input[type=text]) { width: 100%; display: block; background: white; color: var(--ink); border: 1px solid var(--ink); padding: .6rem; margin-top: .35rem; font: inherit; }
+.decision-form textarea { min-height: 6rem; resize: vertical; }
+.decision-form button { margin-top: .7rem; }
+.decision-form :disabled { cursor: wait; }
+

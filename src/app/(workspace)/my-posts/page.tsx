@@ -1,21 +1,17 @@
-import { Suspense } from "react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AppSidebar } from "@/components/app-sidebar";
 import { ReportButton } from "@/features/landing/report-button";
 import { getCurrentSession } from "@/lib/auth/session";
 import { getReportService } from "@/lib/reports/runtime";
 import { ReportError } from "@/features/reports/policy";
-import "../discover/discover.css";
-import "./my-posts.css";
 
 export const metadata: Metadata = { title: "My posts — LostLink", robots: { index: false, follow: false } };
 type Query = Record<string, string | string[] | undefined>;
 const dates = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "Asia/Singapore" });
 const reviews = { pending: "Awaiting review", published: "Published", hidden: "Hidden" };
 
-async function Posts({ searchParams }: { searchParams: Promise<Query> }) {
+export default async function MyPostsPage({ searchParams }: { searchParams: Promise<Query> }) {
   const session = await getCurrentSession();
   if (!session) redirect("/login?next=%2Fmy-posts");
   if (!session.user.emailVerified) redirect("/verify-email?next=%2Fmy-posts");
@@ -42,7 +38,4 @@ async function Posts({ searchParams }: { searchParams: Promise<Query> }) {
       {(cursor || page.nextCursor) && <nav className="my-posts-pagination" aria-label="Your posts pages"><Link href={type ? `/my-posts?type=${type}` : "/my-posts"}>First page</Link>{page.nextCursor && <Link href={`/my-posts?${next}`}>Older posts →</Link>}</nav>}
     </>
   );
-}
-export default function MyPostsPage(props: { searchParams: Promise<Query> }) {
-  return <div className="discover-shell"><a className="skip-link" href="#my-posts-main">Skip to your posts</a><AppSidebar active="posts" /><div className="discover-workspace"><header className="discover-topbar"><span>YOUR REPORTS</span></header><main className="discover-main" id="my-posts-main"><div className="discover-heading"><div><h1>My posts</h1><p>Track the lost and found items you’ve reported.</p></div><ReportButton /></div><Suspense fallback={<p role="status" className="discover-loading">Loading your posts…</p>}><Posts {...props} /></Suspense></main></div></div>;
 }
