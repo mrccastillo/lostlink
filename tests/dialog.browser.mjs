@@ -1,4 +1,4 @@
-import { seedPublishedReports, startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
+﻿import { seedPublishedReports, startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -32,6 +32,10 @@ test("login, workspace navigation, posting modal, and sign-out work without retr
     await reports.insertOne({ ...found, ...overrides, _id: crypto.randomUUID(), title: privateMarker, location: privateMarker });
   }
   const cookie = fixture.cookies.map(({ name, value }) => name + '=' + value).join('; ');
+  for (const path of ["/admin/users", "/admin/admins", "/admin/audit"]) {
+    const denied = await fetch(baseURL + path, { headers: { cookie } });
+    assert.ok(!(await denied.text()).includes(credentials.email), "Member must not receive account directory records");
+  }
   const response = await fetch(baseURL + '/discover', { headers: { cookie } });
   const payload = await response.text();
   assert.ok(payload.includes(found.title), 'Published item missing from rendered board');
@@ -93,6 +97,13 @@ test("login, workspace navigation, posting modal, and sign-out work without retr
     const appUrl = baseURL;
     await send("Page.navigate", { url: appUrl });
     await until("!!document.querySelector('a.header-cta')", "Landing posting link did not load");
+    await until("document.querySelector('.report-card-button')?.click(), !!document.querySelector('dialog[open] .photo-trigger')", "Item detail did not open");
+    await evaluate("document.querySelector('dialog[open] .photo-trigger').focus()");
+    await evaluate("document.activeElement.click()");
+    await until("(() => { const img = document.querySelector('.photo-viewer[open] img'); return img?.naturalWidth > 0 && getComputedStyle(img).objectFit === 'contain'; })()", "Full photo did not load uncropped");
+    await evaluate("document.querySelector('.photo-viewer[open] .icon-button').click()");
+    await until("document.querySelectorAll('dialog[open]').length === 1 && document.activeElement.matches('.photo-trigger')", "Closing photo did not restore item details and focus");
+    await evaluate("document.querySelector('dialog[open] .icon-button').click()");
     await evaluate("document.querySelector('a.header-cta').click()");
     await until("location.pathname === '/login' && !!document.querySelector('input[type=password]')", "Posting link did not open login");
     assert.equal(await evaluate("new URLSearchParams(location.search).get('next')"), "/discover?compose=1");
@@ -181,25 +192,36 @@ test("login, workspace navigation, posting modal, and sign-out work without retr
         const icon = link.querySelector('svg');
         return icon?.checkVisibility() && icon.getBoundingClientRect().width > 0 && icon.getBoundingClientRect().height > 0;
       }).map(link => link.pathname)`);
-      assert.deepEqual(links, ["/admin", "/admin/reports", "/admin/claims", "/admin/pickups"]);
+      assert.deepEqual(links, ["/admin", "/admin/reports", "/admin/claims", "/admin/pickups", "/admin/users", "/admin/admins", "/admin/audit"]);
       assert.equal(await evaluate("[...document.querySelectorAll('#admin-main')].filter(main => main.checkVisibility()).length"), 1);
     }
 
     const desktop = ".discover-desktop-nav";
     const mobile = ".discover-mobile-nav";
     await checkAdminNav(desktop, "/admin");
+    for (const [path, heading] of [["/admin/users", "All users"], ["/admin/admins", "All admins"], ["/admin/audit", "Audit logs"]]) {
+      await evaluate(`window.adminSidebar.querySelector('${desktop} a[href="${path}"]').click()`);
+      await until(`location.pathname === '${path}' && document.querySelector('.staff-directory h1')?.textContent === '${heading}'`, heading);
+      await checkAdminNav(desktop, path);
+      if (path === "/admin/admins") {
+        await evaluate("const form = document.querySelector('.staff-create'); form.elements.email.value = 'reporter@example.test'; form.requestSubmit()");
+        await until("document.querySelector('.staff-create [role=status]')?.textContent.includes('granted')", "Admin grant confirmation");
+        await until("document.querySelector('.staff-table')?.textContent.includes('reporter@example.test')", "New admin missing from directory");
+      }
+      if (path === "/admin/audit") assert.ok(await evaluate("document.querySelector('.staff-table').textContent.includes('admin.created')"));
+    }
     for (const path of ["/admin/reports", "/admin/claims", "/admin/pickups"]) {
       await evaluate(`window.adminSidebar.querySelector('${desktop} a[href="${path}"]').click()`);
       await until(`location.pathname === '${path}' && !!document.querySelector('.case-pages')`, `Queue missing for ${path}`);
       await checkAdminNav(desktop, path);
       if (path === "/admin/reports") {
         const detail = path + "/" + found._id;
-        await evaluate(`document.querySelector('.case-list a[href="${detail}"]').click()`);
+        await evaluate(`document.querySelector('.report-queue-grid a[href="${detail}"]').click()`);
         await until(`location.pathname === '${detail}' && !!document.querySelector('.case-status')`, "Report case missing");
         await checkAdminNav(desktop, path);
       }
     }
-    for (const [path, content] of [["/discover", ".discover-filters"], ["/my-posts", ".my-posts-list, .my-posts-empty"], ["/claims", ".claim-list, .claim-privacy"], ["/admin", ".dashboard-queues"]]) {
+    for (const [path, content] of [["/discover", ".discover-filters"], ["/my-posts", ".my-posts-list, .my-posts-empty"], ["/claims", ".claim-list, .claim-privacy"], ["/admin", ".dashboard-queues .dashboard-queue"]]) {
       await evaluate(`window.workspaceSidebar.querySelector('${desktop} a[href="${path}"]').click()`);
       await until(`location.pathname === '${path}' && [...document.querySelectorAll('${content}')].some(element => element.checkVisibility())`, `Cross-section navigation did not open ${path}`);
       assert.equal(await evaluate("window.workspaceDocument && window.workspaceSidebar.isConnected && window.workspaceSidebar === [...document.querySelectorAll('.discover-sidebar')].find(sidebar => sidebar.checkVisibility())"), true, "Cross-section navigation replaced the document or sidebar");
@@ -211,7 +233,7 @@ test("login, workspace navigation, posting modal, and sign-out work without retr
     await evaluate("window.adminSidebar.querySelector('.discover-mobile-nav summary').click()");
     await checkAdminNav(mobile, "/admin/pickups");
     await evaluate("window.adminSidebar.querySelector('.discover-mobile-nav a[href=\"/admin\"]').click()");
-    await until("location.pathname === '/admin' && [...document.querySelectorAll('.dashboard-queues')].some(element => element.checkVisibility()) && !window.adminSidebar.querySelector('.discover-mobile-nav').open", "Mobile link did not return to the dashboard and dismiss the menu");
+    await until("location.pathname === '/admin' && [...document.querySelectorAll('.dashboard-queues .dashboard-queue')].some(element => element.checkVisibility()) && !window.adminSidebar.querySelector('.discover-mobile-nav').open", "Mobile link did not return to the dashboard and dismiss the menu");
     await evaluate("window.adminSidebar.querySelector('.discover-mobile-nav summary').click()");
     await checkAdminNav(mobile, "/admin");
     await evaluate("window.adminSidebar.querySelector('.discover-mobile-nav .discover-sign-out button').click()");
@@ -227,3 +249,4 @@ test("login, workspace navigation, posting modal, and sign-out work without retr
     await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 });
+

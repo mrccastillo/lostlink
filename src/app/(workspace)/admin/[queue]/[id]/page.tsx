@@ -1,14 +1,16 @@
+import Image from "next/image";
 import Link from "next/link";
 import { queueDefinition, readCase } from "@/features/admin/cases";
 import { DecisionForm, type CaseAction } from "@/features/admin/decision-form";
 import { CaseTime, pageLink, queryValue } from "../case-navigation";
 
-function Attachments({ kind, id, media, approved }: {
-  kind: "report" | "claim"; id: string; media: string[]; approved?: string[];
+function Attachments({ kind, id, media, approved, images = [] }: {
+  kind: "report" | "claim"; id: string; media: string[]; approved?: string[]; images?: string[];
 }) {
   if (!media.length) return <p>No attachments.</p>;
   return <ul className="case-media">{media.map((file, index) =>
-    <li key={file}><a href={`/api/case-media/${kind}/${id}/${file}`}>View {kind === "claim" ? "evidence" : "attachment"} {index + 1}</a>
+    <li key={file}>{images.includes(file) && <Image className="review-photo" unoptimized width={800} height={480}
+      src={`/api/case-media/${kind}/${id}/${file}`} alt={`Submitted item, photo ${index + 1}`} />}<a href={`/api/case-media/${kind}/${id}/${file}`}>View {kind === "claim" ? "evidence" : "attachment"} {index + 1}</a>
       {approved?.includes(file) && " · Approved for members"}</li>)}</ul>;
 }
 
@@ -34,17 +36,22 @@ export default async function CasePage({ params, searchParams }: PageProps<"/adm
   const { report, claim, history, related } = details;
   const base = "/admin/" + queue.key + "/" + id;
   const actions = availableActions(details, queue.key === "pickups");
-  return <>
-    <Link href={pageLink("/admin/" + queue.key, { status: queue.key === "pickups" ? undefined : claim?.status ?? report.moderation })}>{queue.label}</Link>
+  return <article className={claim ? "review-case" : "review-case report-review"}>
+    <header className="review-head">
+    <Link href={pageLink("/admin/" + queue.key, { status: queue.key === "pickups" ? undefined : claim?.status ?? report.moderation })}><span aria-hidden="true">&larr; </span>{queue.label}</Link>
     <h1>{report.title}</h1>
     <p className="case-status">Report {report.moderation} · Item {report.lifecycle}{claim && " · Claim " + claim.status}</p>
+    {!claim && <DecisionForm key={id} actions={actions} entityId={id} expected={report.moderation} title={report.title} media={report.attachments} />}
+    {details.original && <p>Finder response to <Link href={`/admin/reports/${details.original._id}`}>{details.original.title} (original lost post)</Link></p>}
+    </header>
+    <div className="review-columns"><div className="review-content">
     <section className="case-section">
-      <h2>{claim ? "Found report" : "Member-visible preview"}</h2>
+      <h2>{claim ? "Found report" : "Report details"}</h2>
+      {!claim && <Attachments kind="report" id={id} media={report.attachments} approved={report.approvedMedia} images={details.imageIds} />}
       <dl className="case-facts">{Object.entries({ Type: report.type, Category: report.category, Location: report.location, "Date of occurrence": report.occurredOn }).map(([label, value]) =>
         <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
       <p className="case-text">{report.description}</p>
-      {claim ? <Link href={"/admin/reports/" + report._id}>Open report and moderation history</Link> :
-        <><h3>Report attachments for review</h3><Attachments kind="report" id={id} media={report.attachments} approved={report.approvedMedia} /></>}
+      {claim && <Link href={"/admin/reports/" + report._id}>Open report details</Link>}
     </section>
     {report.moderationReason && <p>Moderation reason · {report.moderationReason}</p>}
     {claim && <section className="case-section">
@@ -71,21 +78,23 @@ export default async function CasePage({ params, searchParams }: PageProps<"/adm
     </section>}
     {claim?.status === "pending" && queue.key === "claims" && !actions.includes("approve") &&
       <p>Approval requires a published, open item. This item is {report.moderation} and {report.lifecycle}.</p>}
-    <DecisionForm key={id} actions={actions} entityId={id} expected={claim?.status ?? report.moderation} title={report.title} claimant={claim?.claimantId} media={claim ? [] : report.attachments} />
-    <section className="case-section" id="history"><h2>Case history</h2>
+    </div>{claim && <aside className="review-decision">
+    <DecisionForm key={id} actions={actions} entityId={id} expected={claim?.status ?? report.moderation} title={report.title} originalTitle={details.original?.ownerId === claim?.claimantId && details.original?.lifecycle === "open" ? details.original.title : undefined} claimant={claim?.claimantId} media={claim ? [] : report.attachments} />
+    </aside>}</div>
+    {claim && <section className="case-section" id="history"><h2>Case history</h2>
       {history.items.length ? <ol className="case-history">{history.items.map(event =>
         <li key={event._id.toString()}><strong>{event.action.replace(".", " ")}</strong> · <CaseTime date={event.createdAt} />
-          <p>Actor {event.actorId}</p>
+          <details><summary>Event details</summary><p>Actor {event.actorId}</p>
           {event.from && event.to && <p>{event.from} → {event.to}</p>}
           {event.lifecycleFrom && <p>Item {event.lifecycleFrom} → {event.lifecycleTo}</p>}
           <p>Report {event.reportId ?? report._id}{(event.claimId || claim) && " · Claim " + (event.claimId ?? claim?._id)}</p>
-          {event.linkedLostId && <Link href={"/admin/reports/" + event.linkedLostId}>Linked lost report {event.linkedLostId}</Link>}
+          {event.linkedLostId && <Link href={"/admin/reports/" + event.linkedLostId}>Linked lost report {event.linkedLostId}</Link>}</details>
         </li>)}</ol> : <p>No events recorded on this page.</p>}
       <nav className="case-pages" aria-label="History pages">
         {historyCursor && <Link href={pageLink(base, { competing: claimsCursor }) + "#history"}>First events</Link>}
         {history.next && <Link href={pageLink(base, { history: history.next, competing: claimsCursor }) + "#history"}>Next events</Link>}
       </nav>
-    </section>
-  </>;
+    </section>}
+  </article>;
 }
 

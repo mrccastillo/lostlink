@@ -58,6 +58,10 @@ export function createMediaService(db: Db, storage: MediaStorage) {
       if (!limit || limit.count > 5)
         throw new MediaError("Too many upload attempts. Please wait a minute.");
       const media = await prepareMedia(file);
+      // Expired legacy failures retain their cleanup data while releasing active attachment slots.
+      await records.updateMany({ ownerId: actor.id, expiresAt: { $lte: now }, status: { $in: ["uploading", "ready"] } }, {
+        $set: { status: "deleting" },
+      });
       const id = randomUUID();
       const location: MediaLocation = {
         publicId: `lostlink/attachments/${id}`,
@@ -80,10 +84,12 @@ export function createMediaService(db: Db, storage: MediaStorage) {
       if (!reserved) throw new MediaError("You can keep up to five attachments. Remove one first.");
       try {
         await storage.upload(location.publicId, media);
-        await records.updateOne({ _id: id, status: "uploading" }, { $set: { status: "ready" } });
-      } catch {
+        const completed = await records.updateOne({ _id: id, status: "uploading", expiresAt: { $gt: new Date() } }, { $set: { status: "ready" } });
+        if (completed.matchedCount !== 1) throw new MediaError("This upload expired. Please try again.");
+      } catch (error) {
         // Keep a durable cleanup record even if the provider or DB is down.
-        await records.updateOne({ _id: id }, { $set: { expiresAt: now } });
+        await records.updateOne({ _id: id }, { $set: { status: "deleting", expiresAt: now } });
+        if (error instanceof MediaError) throw error;
         throw new MediaError("Upload failed. Please try again later.");
       }
       return id;
@@ -131,4 +137,23 @@ export async function ensureMediaIndexesV1(db: Db) {
       expireAfterSeconds: 0, name: "media_rate_expiry_v1",
     }),
   ]);
+}
+
+export async function ensureMediaIndexesV2(db: Db) {
+  // Build the replacement before retiring V1 so active uploads always have a unique slot constraint.
+  await db.collection("media_uploads").createIndex({ ownerId: 1, slot: 1 }, {
+    unique: true, name: "media_owner_active_slot_v2",
+    partialFilterExpression: { status: { $in: ["uploading", "ready"] } },
+  });
+  await Promise.all([
+    db.collection("media_uploads").createIndex({ expiresAt: 1 }, { name: "media_cleanup_v1" }),
+    db.collection("media_limits").createIndex({ expiresAt: 1 }, {
+      expireAfterSeconds: 0, name: "media_rate_expiry_v1",
+    }),
+  ]);
+  try {
+    await db.collection("media_uploads").dropIndex("media_owner_slot_v1");
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== 27) throw error;
+  }
 }

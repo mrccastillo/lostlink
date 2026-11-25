@@ -8,3 +8,7 @@
 @keyframes workspace-pulse {
   to { opacity: .55; }
 }
+
+.finder-alerts { border-bottom: 2px solid currentColor; background: #f3f5c7; padding: .5rem 1rem; }
+.finder-alerts > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+.finder-alerts a, .finder-alerts button { text-decoration: underline; padding: .5rem; }

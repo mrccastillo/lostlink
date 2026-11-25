@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { setTimeout as delay } from "node:timers/promises";
-import { startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
+import { seedPublishedReports, startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
 
 async function until(read, description) {
   const deadline = Date.now() + 15_000;
@@ -169,6 +169,11 @@ test("members and staff take a found report from submission through physical pic
 
   async function selectDecision(action, entityId) {
     await until(() => evaluate((action, entityId) => {
+      const trigger = document.querySelector(`button[data-decision="${action}"]`);
+      if (trigger && location.pathname.endsWith("/" + entityId)) {
+        trigger.click();
+        return true;
+      }
       const radio = document.querySelector(`input[type="radio"][name="action"][value="${action}"]`);
       if (!radio || radio.form.elements.entityId.value !== entityId) return false;
       radio.click();
@@ -182,7 +187,16 @@ test("members and staff take a found report from submission through physical pic
 
   const reportPath = `/admin/reports/${report._id}`;
   await openQueueCase("reports", report._id);
+  await selectDecision("hide", report._id);
+  await until(() => evaluate(() => {
+    const dialog = document.querySelector("dialog[open]");
+    if (!dialog?.querySelector("textarea:required")) return false;
+    dialog.querySelector('button[aria-label="Close dialog"]').click();
+    return true;
+  }), "dismiss hide report confirmation");
+  assert.equal((await reports.findOne({ _id: report._id })).moderation, "pending");
   await selectDecision("publish", report._id);
+  await until(() => evaluate(() => !!document.querySelector("dialog[open] textarea")), "publish confirmation dialog");
   await confirmDecision("Public details reviewed.");
   await until(() => reports.findOne({ _id: report._id, moderation: "published", lifecycle: "open" }), "published report");
 
@@ -268,11 +282,8 @@ test("members and staff take a found report from submission through physical pic
   }, title), "returned item in the finder's My Posts");
 
   await visit(reportPath, fixture);
-  await until(() => evaluate(() => document.querySelectorAll("#history ol li").length >= 4), "report case history");
-  const history = await evaluate(() => Array.from(document.querySelectorAll("#history ol li strong"), el => el.innerText));
-  assert.deepEqual(history.filter(label => label !== "claim submitted"), [
-    "report submitted", "report published", "claim approved", "claim fulfilled",
-  ]);
+  await until(() => evaluate(() => !!document.querySelector(".report-review")), "report details");
+  assert.equal(await evaluate(() => !!document.querySelector("#history")), false);
   const events = await db.collection("audit_events").find({
     organization: "community", entityId: { $in: [report._id, claim._id] },
   }).sort({ createdAt: 1, _id: 1 }).toArray();
@@ -282,4 +293,54 @@ test("members and staff take a found report from submission through physical pic
     ["claim.fulfilled", String(staff._id)],
   ]);
   for (const answer of [proof, circumstances]) assert.ok(!JSON.stringify(events).includes(answer), "Audit history leaked private proof");
+});
+
+test("finder submission links staff and the lost owner to the same response", { timeout: 150_000 }, async (context) => {
+  const fixture = await startAuthenticatedBrowserApp(context, 3123);
+  await fixture.grantAdmin();
+  const { lost, author: owner } = await seedPublishedReports(fixture);
+  const reports = fixture.db.collection("reports");
+  const finder = await fixture.createMember("Camera Finder", "camera-finder@example.test");
+  const { visit, evaluate } = await startBrowser(context, fixture.baseURL);
+  await visit("/discover", finder);
+  await until(() => evaluate((title) => {
+    const trigger = document.querySelector(`button[aria-label="View item: ${title}"]`);
+    if (!trigger) return false;
+    trigger.click();
+    return true;
+  }, lost.title), "lost post");
+  await until(() => evaluate(() => {
+    const trigger = [...document.querySelectorAll("dialog[open] button")].find(el => el.textContent === "I found this item");
+    if (!trigger) return false;
+    trigger.click();
+    return true;
+  }), "finder response button");
+  await until(() => evaluate(submitFields, "dialog[open] form:has([name=respondingTo])", {
+    location: "Library", occurredOn: "2025-04-12", description: "Found the compact camera by the printer.",
+  }, []), "finder submission");
+  const response = await until(() => reports.findOne({ respondingTo: lost._id }), "linked report");
+  await visit("/admin/reports", fixture);
+  await until(() => evaluate((id) => document.querySelector(`a[href="/admin/reports/${id}"]`)?.closest("li")?.textContent.includes("Finder response"), response._id), "staff queue label");
+  await visit("/admin/reports/" + response._id, fixture);
+  await until(() => evaluate((id) => {
+    if (!document.querySelector(`main a[href="/admin/reports/${id}"]`)) return false;
+    const trigger = document.querySelector('button[data-decision="publish"]');
+    trigger?.click();
+    return !!trigger;
+  }, lost._id), "original post link in staff review");
+  await until(() => evaluate(submitFields, "dialog[open] form:has([name=reason])", {}, []), "publish confirmation");
+  await until(() => reports.findOne({ _id: response._id, moderation: "published" }), "published finder response");
+  await visit("/discover", owner);
+  await until(() => evaluate(() => {
+    const link = document.querySelector(".finder-alerts a");
+    link?.click();
+    return !!link;
+  }), "owner follows finder notice");
+  await until(() => evaluate((id) => document.querySelector(`#response-${id}`)?.textContent.includes("Found the compact camera"), response._id), "linked finder description");
+  await until(() => evaluate(() => {
+    const button = document.querySelector(".finder-alerts button");
+    button?.click();
+    return !!button;
+  }), "mark notice as read");
+  await until(() => reports.findOne({ _id: response._id, unreadFor: { $exists: false } }), "acknowledged notice");
 });

@@ -31,11 +31,13 @@ CLOUDINARY_API_SECRET=your-api-secret
 
 Do not create an unsigned upload preset or expose the API secret with `NEXT_PUBLIC_*`. The SDK uploads bytes from the server using authenticated delivery. Original files and derived assets remain protected; only an authorized owner can request a download link, which expires after 60 seconds. A permanent signed CDN URL is deliberately not returned. Cloudinary must allow authenticated uploads and private downloads in the configured product environment. Use separate product environments for development and production.
 
+The Cloudinary API key must permit creating assets in the upload folder, reading private assets, and deleting expired assets. HTTP 403 with a missing create permission requires updating the key role or folder permissions in Cloudinary Settings > API Keys.
+
 Members with verified email can use the private attachment panel in the Post an item modal to upload, download, and remove media. It accepts JPEG/PNG/WebP images up to 5 MB and MP4/WebM videos up to 20 MB, with at most five stored attachments per member. Actual file signatures are checked, images are decoded and re-encoded to strip metadata, and Cloudinary must successfully decode the image or video with nonzero dimensions. SVG, executable content, animated images, and audio-only files are rejected. Upload attempts are limited to five per minute per member. Files use random identifiers; original filenames are not retained.
 
 Unused private attachments expire after 24 hours. Selected attachments transfer atomically into private report media when a report is submitted; they no longer expire with temporary uploads. Reports and claims retain their transferred attachments. Staff review them through case-specific authorized download links. Static landing-page illustrations remain local assets.
 
-MongoDB's `media_uploads` collection records ownership, lifecycle, storage location, and expiry before the provider upload starts. Versioned idempotent indexes enforce five slots per owner under concurrency and expire rate-limit counters. Failed uploads and deletions retain a cleanup record. Expired attachments become inaccessible through the app even before physical deletion. Run the cleanup command regularly (for example, hourly in your deployment's scheduler):
+MongoDB's `media_uploads` collection records ownership, lifecycle, storage location, and expiry before the provider upload starts. Versioned idempotent indexes enforce five active slots per owner under concurrency and expire rate-limit counters. Setup creates the V2 active-slot index before retiring the V1 index. Failed uploads and deletions retain a cleanup record while releasing their active slot. Uploading again also releases expired reservations owned by the current member, including failures created before V2. Expired attachments become inaccessible through the app even before physical deletion. Run the cleanup command regularly (for example, hourly in your deployment's scheduler):
 
 ```sh
 npm run media:cleanup
@@ -113,9 +115,9 @@ Standard sign-in opens `/admin` for verified administrators and `/discover` for 
 
 - **Review reports** at `/admin/reports` lets staff review a report and its attachments, publish it to Discover, or hide it with a reason.
 - **Review claims** at `/admin/claims` lets staff inspect private proof, compare competing requests, and approve or reject a claim. Approval reserves an open found item for one claimant.
-- **Manage pickups** at `/admin/pickups` lets staff record a physical handoff or cancel a reservation. Recording the handoff fulfills the claim and marks the item returned. Cancellation reopens the item.
+- **Manage pickups** at `/admin/pickups` lets staff record a physical handoff or cancel a reservation. Recording the handoff fulfills the claim and marks the item returned. Cancellation reopens the item. For a finder response, confirmed pickup also closes the original open lost post if the claimant owns it.
 
-Case pages show an audit history. Use My Posts and My Claims to see member-visible outcomes. Before launch, the organization must confirm its pickup location and evidence-retention period. After building, `npm run test:admin` exercises the staff lifecycle against isolated accounts.
+In Review reports, a finder response is labeled and links to the original lost post. Publishing a new response alerts the lost owner in their workspace. They can open the response, claim the item, or mark the notice as read. Claim cases show an audit history. Use My Posts and My Claims to see member-visible outcomes. Before launch, the organization must confirm its pickup location and evidence-retention period. After building, `npm run test:admin` exercises the staff lifecycle against isolated accounts.
 
 Auth endpoints validate origins and use MongoDB-backed rate limiting. In production, ensure your hosting proxy overwrites the client IP headers and prevent direct access that could bypass the proxy. Monitor the safe `AUTH_*` server event codes for service/email delivery failures; never log credentials or emailed links. Email delivery uses Next.js `after` so requests do not wait on the email provider; users can request a fresh verification/reset email if delivery fails.
 
@@ -168,3 +170,5 @@ After building, run `npm run test:claims` to verify claim eligibility, proof ent
 ## My posts
 
 `/my-posts` is a verified-account page linked from the sidebar. It lists only the current member?s reports in the single community, including pending, published, and hidden reports. Each entry shows type, title, category, location, date lost/found, review status, description, lifecycle, submission date, and attachment count. Lost/found filters live in the URL. Pages contain at most 20 reports with stable timestamp/ID pagination. The server checks session identity and ownership for every read and returns an explicit projection without storage paths or claim evidence. Submitting a report refreshes the current view. Editing, withdrawal, and saved-attachment viewing remain pending.
+
+Admin tools includes paginated All users, All admins, and Audit logs pages. Under All admins, Create admin grants a verified account access immediately. For a new or unverified address it authorizes access for seven days. Staff must share signup instructions with the recipient. The recipient verifies their email through the usual signup flow.

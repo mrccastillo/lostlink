@@ -15,7 +15,7 @@ const claimTransitions = {
 } as const;
 type Decision = {
   action: Action; entityId: string; expected: string; requestId: string;
-  reason: string; linkedLostId: string; approvedMedia: string[];
+  reason: string; linkedLostId: string;
 };
 type Actor = AccountAccess & { id: string };
 type ManagedReport = Report & { reservedClaimId?: string; approvedMedia?: string[]; moderationReason?: string };
@@ -50,12 +50,9 @@ function parseDecision(form: FormData): Decision {
     throw new DecisionError("Confirm the linked lost report before recording the return.");
   if (reason.length > 1500 || (!reason && ["hide", "approve", "reject", "cancel"].includes(action)))
     throw new DecisionError("Enter a decision reason of up to 1,500 characters.");
-  const approvedMedia = form.getAll("approvedMedia");
-  if (!approvedMedia.every((id): id is string => typeof id === "string" && REPORT_UUID.test(id)) ||
-      approvedMedia.length > 5 || new Set(approvedMedia).size !== approvedMedia.length ||
-      (approvedMedia.length && action !== "publish"))
-    throw new DecisionError("Choose up to five different report attachments for publication.");
-  return { action, entityId, expected, requestId, reason, linkedLostId, approvedMedia };
+  if (form.has("approvedMedia"))
+    throw new DecisionError("Report attachments are included automatically. Reopen the confirmation.");
+  return { action, entityId, expected, requestId, reason, linkedLostId };
 }
 
 function unavailable(): never { throw new DecisionError("This case is unavailable."); }
@@ -64,20 +61,25 @@ function conflict(state: string): never { throw new DecisionError(`Decision unav
 async function moderate({ db, session }: Context, input: Decision) {
   const reports = db.collection<ManagedReport>("reports");
   const scope = { _id: input.entityId, organization } as const;
-  const report = await reports.findOne(scope, { session, projection: { moderation: 1, attachments: 1, ownerId: 1 } });
+  const report = await reports.findOne(scope, { session, projection: { moderation: 1, attachments: 1, ownerId: 1, respondingTo: 1 } });
   if (!report) unavailable();
   const from = report.moderation;
   const to = input.action === "publish" ? "published" : "hidden";
   if (from !== input.expected || !(from === "pending" || (input.action === "hide" && from === "published")))
     conflict(from);
-  if (input.approvedMedia.length) {
+  const approvedMedia = to === "published" ? report.attachments : [];
+  if (approvedMedia.length) {
     const count = await db.collection<{ _id: string; reportId: string; ownerId: string }>("report_media")
-      .countDocuments({ _id: { $in: input.approvedMedia }, reportId: report._id, ownerId: report.ownerId }, { session });
-    if (count !== input.approvedMedia.length || !input.approvedMedia.every(id => report.attachments.includes(id)))
+      .countDocuments({ _id: { $in: approvedMedia }, reportId: report._id, ownerId: report.ownerId }, { session });
+    if (count !== approvedMedia.length)
       throw new DecisionError("A selected attachment is unavailable for publication.");
   }
+  const parent = to === "published" && report.respondingTo ? await reports.findOne({
+    _id: report.respondingTo, organization, type: "lost", moderation: "published",
+  }, { session, projection: { ownerId: 1 } }) : null;
   const result = await reports.updateOne({ ...scope, moderation: from }, { $set: {
-    moderation: to, moderationReason: input.reason, approvedMedia: input.approvedMedia,
+    moderation: to, moderationReason: input.reason, approvedMedia,
+    ...(parent && parent.ownerId !== report.ownerId && { unreadFor: parent.ownerId }),
   } }, { session });
   if (!result.matchedCount) unavailable();
   return { action: `report.${to}`, reportId: report._id, from, to };
@@ -90,7 +92,7 @@ async function decideClaim({ db, session, actorId, now }: Context, input: Decisi
   const claim = await claims.findOne(claimScope, { session, projection: { status: 1, reportId: 1, claimantId: 1 } });
   if (!claim) unavailable();
   const reportScope = { _id: claim.reportId, organization, type: "found" } as const;
-  const report = await reports.findOne(reportScope, { session, projection: { moderation: 1, lifecycle: 1, reservedClaimId: 1 } });
+  const report = await reports.findOne(reportScope, { session, projection: { moderation: 1, lifecycle: 1, reservedClaimId: 1, respondingTo: 1 } });
   if (!report) unavailable();
   const { from, to, lifecycle } = claimTransitions[action];
   if (claim.status !== input.expected || claim.status !== from) conflict(claim.status);
@@ -106,18 +108,27 @@ async function decideClaim({ db, session, actorId, now }: Context, input: Decisi
   const updated = await claims.updateOne({ ...claimScope, reportId: report._id, status: from },
     { $set: { status: to, ...(input.reason && { decisionReason: input.reason }) } }, { session });
   if (!updated.matchedCount) unavailable();
+  let linkedLostId = input.linkedLostId;
   if (to === "fulfilled") {
-    if (input.linkedLostId) {
-      const linked = await reports.updateOne({ _id: input.linkedLostId, organization, type: "lost",
+    if (report.respondingTo) {
+      const original = await reports.findOne({ _id: report.respondingTo, organization, type: "lost",
+        ownerId: claim.claimantId, lifecycle: "open" }, { session, projection: { _id: 1 } });
+      if (original) {
+        if (linkedLostId && linkedLostId !== original._id) throw new DecisionError("Review the original lost report before confirming pickup.");
+        linkedLostId = original._id;
+      }
+    }
+    if (linkedLostId) {
+      const linked = await reports.updateOne({ _id: linkedLostId, organization, type: "lost",
         ownerId: claim.claimantId, lifecycle: "open" }, { $set: { lifecycle: "returned" } }, { session });
       if (!linked.matchedCount) throw new DecisionError("The linked lost report is unavailable for this claimant.");
     }
     await db.collection("return_events").insertOne({ organization, reportId: report._id, claimId: claim._id,
-      claimantId: claim.claimantId, actorId, createdAt: now, ...(input.linkedLostId && { linkedLostId: input.linkedLostId }) }, { session });
+      claimantId: claim.claimantId, actorId, createdAt: now, ...(linkedLostId && { linkedLostId }) }, { session });
   }
   return { action: `claim.${to}`, reportId: report._id, claimId: claim._id, from, to,
     ...(lifecycle && { lifecycleFrom: report.lifecycle, lifecycleTo: lifecycle }),
-    ...(input.linkedLostId && { linkedLostId: input.linkedLostId }) };
+    ...(linkedLostId && { linkedLostId }) };
 }
 
 export async function ensureDecisionIndexesV1(db: Db) {

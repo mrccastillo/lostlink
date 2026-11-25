@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useNavigationPathname } from "@/components/navigation-pathname";
 import { useRef } from "react";
 import { AdminIcon } from "@/components/admin-icon";
-import { adminQueues } from "@/features/admin/navigation";
+import { adminQueues, directoryPages } from "@/features/admin/navigation";
 import { ADMIN_DASHBOARD_PATH } from "@/lib/auth/policy";
 
 const links = [
   { key: "admin", label: "Dashboard", href: ADMIN_DASHBOARD_PATH },
-  ...adminQueues.map(queue => ({ ...queue, href: `${ADMIN_DASHBOARD_PATH}/${queue.key}` })),
+  ...[...adminQueues, ...directoryPages].map(queue => ({ ...queue, href: `${ADMIN_DASHBOARD_PATH}/${queue.key}` })),
 ] as const;
 
 export function AdminNavigationLinks() {

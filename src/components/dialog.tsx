@@ -44,7 +44,7 @@ export function Dialog({ open, onClose, title, children, className = "" }: Dialo
         if (!event.currentTarget.open) onClose();
       }}
       onKeyDown={(event) => {
-        if (event.key !== "Tab") return;
+        if (event.key !== "Tab" || (event.target instanceof Element && event.target.closest("dialog") !== event.currentTarget)) return;
         const controls = Array.from(
           event.currentTarget.querySelectorAll<HTMLElement>(
             'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',

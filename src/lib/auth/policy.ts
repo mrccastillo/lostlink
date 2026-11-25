@@ -1,5 +1,5 @@
 import { safeClaimPath } from "@/features/claims/policy";
-import { adminQueues } from "@/features/admin/navigation";
+import { adminQueues, directoryPages } from "@/features/admin/navigation";
 import { REPORT_UUID } from "@/features/reports/policy";
 
 export const PASSWORD_MIN_LENGTH = 12;
@@ -19,6 +19,7 @@ export function safeReturnPath(value: unknown): string {
   if (value === ADMIN_DASHBOARD_PATH) return ADMIN_DASHBOARD_PATH;
   if (typeof value === "string" && value.startsWith("/admin/")) {
     const [queue, id, ...extra] = value.slice(7).split("/");
+    if (directoryPages.some(page => value === "/admin/" + page.key)) return value;
     if (adminQueues.some(({ key }) => key === queue) && !extra.length && (id === undefined || REPORT_UUID.test(id))) return value;
   }
   if (value === "/claims") return "/claims";

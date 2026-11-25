@@ -52,7 +52,8 @@ export async function startAuthenticatedBrowserApp(context, port) {
 }
 
 export async function seedPublishedReports({ db, createMember }) {
-  const { credentials } = await createMember('Report Author', 'reporter@example.test');
+  const author = await createMember('Report Author', 'reporter@example.test');
+  const { credentials } = author;
   const owner = await db.collection('user').findOne({ email: credentials.email });
   const common = { ownerId: String(owner._id), organization: 'community', moderation: 'published', lifecycle: 'open',
     category: 'Electronics', occurredOn: '2025-04-10', attachments: [], approvedMedia: [], createdAt: new Date() };
@@ -61,5 +62,5 @@ export async function seedPublishedReports({ db, createMember }) {
   const lost = { ...common, _id: randomUUID(), type: 'lost', title: 'Compact camera', location: 'Cafeteria',
     description: 'A compact camera lost near the cafeteria.' };
   await db.collection('reports').insertMany([found, lost]);
-  return { found, lost };
+  return { found, lost, author };
 }

@@ -1,8 +1,9 @@
+import { redeemAdminGrant } from "./admin-grants";
 import { betterAuth } from "better-auth/minimal";
 import { APIError } from "better-auth/api";
 import { jwt } from "better-auth/plugins";
 import { mongodbAdapter } from "@better-auth/mongo-adapter";
-import type { Db, MongoClient } from "mongodb";
+import { ObjectId, type Db, type MongoClient } from "mongodb";
 import type { AuthConfig } from "./config";
 import type { SendAuthEmail } from "./email";
 import {
@@ -64,6 +65,7 @@ export function createAuth({
       },
     },
     emailVerification: {
+      afterEmailVerification: async user => { await redeemAdminGrant(db, client, user.email); },
       sendOnSignUp: true,
       sendOnSignIn: false,
       autoSignInAfterVerification: false,
@@ -92,6 +94,19 @@ export function createAuth({
       },
     },
     databaseHooks: {
+      session: {
+        create: {
+          before: async session => {
+            // Also redeem on sign-in if verification raced the staff authorization.
+            if (ObjectId.isValid(session.userId)) {
+              const member = await db.collection("user").findOne({
+                _id: new ObjectId(session.userId), emailVerified: true, role: { $ne: ADMIN_ROLE },
+              }, { projection: { email: 1 } });
+              if (typeof member?.email === "string") await redeemAdminGrant(db, client, member.email);
+            }
+          },
+        },
+      },
       user: {
         create: {
           before: async (user) => {

@@ -415,7 +415,7 @@ test(
           ]);
           assert.equal(overview.recentReports.length, 10);
           assert.deepEqual(Object.keys(overview.recentReports[0]).sort(), [
-            "_id", "createdAt", "title", "type",
+            "_id", "cover", "createdAt", "description", "title", "type",
           ]);
 
           assert.equal(await setAccountRole(db, email, "member"), true);

@@ -1,9 +1,10 @@
 import type { Db, ObjectId } from "mongodb";
 import { REPORT_UUID } from "@/features/reports/policy";
 import { canAccessAdmin, type AccountAccess } from "@/lib/auth/policy";
+import { reportCovers } from "@/lib/media/report-covers";
 import type { Report } from "@/lib/reports/service";
 
-type PendingReport = Pick<Report, "_id" | "title" | "type" | "createdAt">;
+type PendingReport = Pick<Report, "_id" | "title" | "type" | "createdAt" | "description" | "attachments">;
 const community = { organization: "community" } as const;
 
 const staffActivity = {
@@ -48,19 +49,21 @@ export async function readAdminOverview(
   const reports = db.collection<Report>("reports");
   const pending = { ...community, moderation: "pending" } as const;
   const claims = db.collection("claims");
-  const [pendingReports, pendingClaims, reservedPickups, completedReturns, recentActivity, recentReports] = await Promise.all([
+  const [pendingReports, pendingClaims, reservedPickups, completedReturns, recentActivity, rows] = await Promise.all([
     reports.countDocuments(pending),
     claims.countDocuments({ ...community, status: "pending" }),
     claims.countDocuments({ ...community, status: "approved" }),
     db.collection("return_events").countDocuments(community),
     readRecentActivity(db),
     reports.find(pending)
-      .project<PendingReport>({ _id: 1, title: 1, type: 1, createdAt: 1 })
+      .project<PendingReport>({ _id: 1, title: 1, type: 1, createdAt: 1, description: 1, attachments: 1 })
       .sort({ createdAt: -1, _id: -1 })
       .limit(10)
       .toArray(),
   ]);
 
+  const covers = await reportCovers(db, rows, "report");
+  const recentReports = rows.map(({ _id, title, type, createdAt, description }) => ({ _id, title, type, createdAt, description, cover: covers.get(_id) ?? null }));
   return { pendingReports, pendingClaims, recentReports, reservedPickups, completedReturns, recentActivity };
 }
 

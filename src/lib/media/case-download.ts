@@ -12,7 +12,7 @@ type StoredMedia = MediaLocation & { _id: string; ownerId: string; reportId?: st
 const headers = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" };
 const locationProjection = { projection: { _id: 0, publicId: 1, resourceType: 1, format: 1 } };
 
-async function findLocation(db: Db, { kind, entityId, mediaId }: Params) {
+async function findLocation(db: Db, { kind, entityId, mediaId }: Params, ownerId?: string) {
   const parent = { _id: entityId, organization: "community", attachments: mediaId };
   if (kind === "claim") {
     const claim = await db.collection<Claim>("claims").findOne(parent, { projection: { claimantId: 1 } });
@@ -23,6 +23,7 @@ async function findLocation(db: Db, { kind, entityId, mediaId }: Params) {
   }
   const report = await db.collection<Report>("reports").findOne({
     ...parent,
+    ...(kind === "own" ? { ownerId } : {}),
     ...(kind === "published" ? { moderation: "published", approvedMedia: { $type: "array" as const, $eq: mediaId } } : {}),
   }, { projection: { ownerId: 1 } });
   if (!report?.ownerId) return null;
@@ -32,20 +33,20 @@ async function findLocation(db: Db, { kind, entityId, mediaId }: Params) {
 }
 
 export async function caseMediaDownload(
-  actor: AccountAccess | null,
+  actor: (AccountAccess & { id?: string }) | null,
   params: Params,
   database: () => Promise<{ db: Db }>,
   sign: (location: MediaLocation) => string,
 ) {
   if (!actor) return new Response(null, { status: 401, headers });
-  if (!actor.emailVerified || (params.kind !== "published" && !canAccessAdmin(actor)))
+  if (!actor.emailVerified || (params.kind === "own" ? !actor.id : params.kind !== "published" && !canAccessAdmin(actor)))
     return new Response(null, { status: 403, headers });
-  if (!["published", "report", "claim"].includes(params.kind) ||
+  if (!["published", "report", "claim", "own"].includes(params.kind) ||
       !REPORT_UUID.test(params.entityId) || !REPORT_UUID.test(params.mediaId))
     return new Response(null, { status: 404, headers });
   try {
     const { db } = await database();
-    const location = await findLocation(db, params);
+    const location = await findLocation(db, params, actor.id);
     if (!location) return new Response(null, { status: 404, headers });
     return new Response(null, { status: 307, headers: { ...headers, Location: sign(location) } });
   } catch {

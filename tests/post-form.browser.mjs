@@ -74,6 +74,26 @@ test("authenticated report form supports dropped previews without horizontal ove
     await until("document.querySelectorAll('.media-preview').length === 2", "Dropped file previews missing");
     await until("document.querySelector('.media-preview img').naturalWidth > 0", "Image preview did not decode");
     assert.equal(await evaluate("!!document.querySelector('.media-preview video[controls]')"), true, 'Video preview must have controls');
+    let pausedUpload;
+    socket.addEventListener("message", event => {
+      const message = JSON.parse(event.data);
+      if (message.method !== "Fetch.requestPaused") return;
+      if (message.params.request.method === "POST") pausedUpload = message.params.requestId;
+      else void send("Fetch.continueRequest", { requestId: message.params.requestId });
+    });
+    await send("Fetch.enable", { patterns: [{ urlPattern: baseURL + "/discover*", requestStage: "Request" }] });
+    await evaluate("document.querySelector('.media-upload-button').click()");
+    await until("document.querySelector('.media-upload-button')?.getAttribute('aria-busy') === 'true'", "Upload button did not show its pending state");
+    assert.equal(await evaluate("document.querySelectorAll('.media-upload-button .media-upload-spinner').length"), 1);
+    assert.equal(await evaluate("[...document.querySelectorAll('.media-preview')].some(preview => preview.textContent.includes('Uploading'))"), false, "Preview cards must not show upload loaders");
+    assert.equal(await evaluate("document.querySelector('.report-submit').textContent"), "Submit report for review");
+    assert.equal(await evaluate("document.querySelector('.report-submit').disabled"), true);
+    assert.equal(await evaluate("getComputedStyle(document.querySelector('.media-remove')).display"), "block");
+    for (let attempt = 0; !pausedUpload && attempt < 100; attempt++) await delay(50);
+    assert.ok(pausedUpload, "Upload request was not intercepted");
+    await send("Fetch.failRequest", { requestId: pausedUpload, errorReason: "Aborted" });
+    await send("Fetch.disable");
+    await until("document.querySelector('.media-upload-button')?.getAttribute('aria-busy') === 'false'", "Upload button did not recover after a failed request");
     for (const width of [1280, 390, 320]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: width < 500 });
       await delay(150);

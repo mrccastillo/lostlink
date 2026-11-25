@@ -19,7 +19,7 @@ test("report validation rejects invalid dates, fields, and duplicate attachments
 
 test("report submission enforces authorization, transactions, idempotency, and attachment ownership", { timeout: 120_000 }, async () => {
   const replica = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  const client = new MongoClient(replica.getUri());
+  const client = new MongoClient(replica.getUri(), { timeoutMS: 10_000 });
   try {
     await client.connect();
     const db = client.db("isolated_reports_test");
@@ -37,7 +37,9 @@ test("report submission enforces authorization, transactions, idempotency, and a
     await assert.rejects(service.submit(other, { ...input(), attachments: [id] }));
     await assert.rejects(service.submit(actor, { ...input(), attachments: [randomUUID()] }));
     assert.equal(await db.collection("reports").countDocuments(), 0);
-    const report = { ...input(), attachments: [id] };
+    const secondId = randomUUID();
+    await files.insertOne({ _id: secondId, ownerId: actor.id, status: "ready", expiresAt: new Date(Date.now() + 60_000), publicId: "isolated/second-file", resourceType: "image", format: "png" });
+    const report = { ...input(), attachments: [id, secondId] };
     await Promise.all([service.submit(actor, report), service.submit(actor, report)]);
     assert.equal(await db.collection("reports").countDocuments(), 1);
     assert.equal(await files.countDocuments(), 0);
@@ -45,9 +47,10 @@ test("report submission enforces authorization, transactions, idempotency, and a
     assert.equal(saved?.moderation, "pending");
     assert.equal(saved?.lifecycle, "open");
     assert.equal(saved?.organization, "community");
-    const media = await db.collection("report_media").findOne({ reportId: report.requestId });
+    const media = await db.collection<{ _id: string; publicId: string; expiresAt?: Date }>("report_media").findOne({ _id: id, reportId: report.requestId });
     assert.equal(media?.publicId, "isolated/test-file");
     assert.equal(media?.expiresAt, undefined);
+    assert.equal(await db.collection("report_media").countDocuments({ reportId: report.requestId }), 2);
     assert.equal(await db.collection("audit_events").countDocuments(), 1);
     await assert.rejects(service.submit(other, report));
     await assert.rejects(service.submit(actor, { ...input(), attachments: [id] }));
@@ -91,5 +94,25 @@ test("report submission enforces authorization, transactions, idempotency, and a
     assert.equal(found.items.length, 11);
     assert.ok(found.items.every((record) => record.type === "found"));
     await assert.rejects(service.listOwn(pagedActor, { cursor: "invalid" }));
+    const owner = { id: "response-owner", emailVerified: true };
+    const finder = { id: "response-finder", emailVerified: true };
+    const parent = await service.submit(owner, input());
+    const finderInput = { ...input(), type: "found" as const };
+    await assert.rejects(service.submit(finder, finderInput, parent));
+    const posts = db.collection<{ _id: string; moderation: string }>("reports");
+    await posts.updateOne({ _id: parent }, { $set: { moderation: "published" } });
+    const ownResponse = await service.submit(owner, { ...finderInput, requestId: randomUUID() }, parent);
+    assert.ok(await db.collection("reports").findOne({ respondingTo: parent, ownerId: owner.id, moderation: "pending" }));
+    assert.ok(ownResponse);
+    const photoId = randomUUID();
+    await files.insertOne({ _id: photoId, ownerId: finder.id, status: "ready", expiresAt: new Date(Date.now() + 60_000), publicId: "isolated/finder", resourceType: "image", format: "png" });
+    const response = await service.submit(finder, { ...finderInput, attachments: [photoId] }, parent);
+    assert.ok(await db.collection("report_media").findOne({ reportId: response, ownerId: finder.id }));
+    assert.equal((await service.responses(owner, parent))?.rows.length, 0);
+    await db.collection<{ _id: string }>("reports").updateOne({ _id: response }, { $set: { moderation: "published", approvedMedia: [photoId] } });
+    assert.deepEqual((await service.responses(owner, parent))?.rows[0].media, [photoId]);
+    assert.equal((await service.responses(owner, parent))?.rows[0].id, response);
+    assert.equal((await service.responses(finder, parent))?.rows[0].canClaim, false);
+    assert.equal(await service.responses(null, parent), null);
   } finally { await client.close(); await replica.stop(); }
 });

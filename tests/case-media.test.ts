@@ -23,7 +23,7 @@ test("case media redirects only for an authorized viewer and a matching permanen
     await photos.insertOne({ _id: photo, ownerId: "finder", reportId, publicId: "photo", resourceType: "image", format: "png" });
     await evidence.insertOne({ _id: proof, ownerId: "claimant", claimId, publicId: "proof", resourceType: "video", format: "mp4" });
 
-    async function check(actor: AccountAccess | null, kind: string, entityId: string, mediaId: string, expected: number) {
+    async function check(actor: (AccountAccess & { id?: string }) | null, kind: string, entityId: string, mediaId: string, expected: number) {
       const signed: string[] = [];
       const response = await caseMediaDownload(actor, { kind, entityId, mediaId }, async () => ({ db }), (location) => {
         signed.push(location.publicId);
@@ -35,6 +35,9 @@ test("case media redirects only for an authorized viewer and a matching permanen
       assert.deepEqual(signed, expected === 307 ? [kind === "claim" ? "proof" : "photo"] : []);
     }
 
+    await check({ ...member, id: "finder" }, "own", reportId, photo, 307);
+    await check({ ...member, id: "other" }, "own", reportId, photo, 404);
+    await check(member, "own", reportId, photo, 403);
     await check(admin, "report", reportId, photo, 307);
     await check(admin, "claim", claimId, proof, 307);
     await check(member, "report", reportId, photo, 403);

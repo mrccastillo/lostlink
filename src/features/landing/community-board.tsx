@@ -1,5 +1,6 @@
 "use client";
 
+import { ExpandablePhoto } from "@/components/expandable-photo";
 import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
@@ -146,14 +147,7 @@ export function CommunityBoard() {
       >
         {selected && (
           <>
-            <div className="detail-photo">
-              <Image
-                src={selected.image}
-                alt={selected.alt}
-                fill
-                sizes="(max-width: 600px) 85vw, 480px"
-              />
-            </div>
+            <ExpandablePhoto src={selected.image} alt={selected.alt} />
             <p className="eyebrow dialog-label">
               {selected.status} / {selected.location}
             </p>

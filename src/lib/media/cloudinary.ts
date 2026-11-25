@@ -2,6 +2,8 @@ import "server-only";
 import { v2 as cloudinary } from "cloudinary";
 import type { CloudinaryConfig } from "./config";
 import type { PreparedMedia } from "./prepare";
+import { MediaError } from "./policy";
+import { describeUploadFailure } from "./upload-error";
 
 export type MediaLocation = {
   publicId: string;
@@ -37,12 +39,9 @@ export function createCloudinaryStorage(config: CloudinaryConfig): MediaStorage 
           : {}),
       }, (error, result) => {
         if (error || !result) {
-          // Provider messages can include asset paths and signed parameters.
-          const status = error?.http_code;
-          console.error("MEDIA_PROVIDER_UPLOAD_FAILED", {
-            status: typeof status === "number" && status >= 100 && status <= 599 ? status : undefined,
-          });
-          return reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED"));
+          const failure = describeUploadFailure(error);
+          console.error(`MEDIA_PROVIDER_UPLOAD_FAILED status=${failure.status ?? "unknown"} code=${failure.code}`);
+          return reject(new MediaError(failure.message));
         }
         if (result.public_id !== publicId || result.resource_type !== media.resourceType ||
             result.format !== media.format || !(result.width > 0) || !(result.height > 0)) {
@@ -56,9 +55,10 @@ export function createCloudinaryStorage(config: CloudinaryConfig): MediaStorage 
         }
         resolve();
       });
-      stream.on("error", () => {
-        console.error("MEDIA_PROVIDER_UPLOAD_STREAM_FAILED");
-        reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED"));
+      stream.on("error", (error) => {
+        const failure = describeUploadFailure(error);
+        console.error(`MEDIA_PROVIDER_UPLOAD_STREAM_FAILED status=${failure.status ?? "unknown"} code=${failure.code}`);
+        reject(new MediaError(failure.message));
       });
       stream.end(media.bytes);
     }),

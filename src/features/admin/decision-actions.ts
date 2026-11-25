@@ -27,6 +27,7 @@ export async function decideCase(previous: { ok: boolean; message: string }, for
   revalidatePath("/admin/[queue]", "layout");
   revalidatePath("/discover");
   revalidatePath("/my-posts");
+  revalidatePath("/lost/[id]/responses", "page");
   revalidatePath("/claims");
   revalidatePath("/claims/[reportId]", "page");
   return { ok: true, message: "Decision recorded." };

@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import { notFound, redirect } from "next/navigation";
 import { canAccessAdmin } from "@/lib/auth/policy";
 import { getCurrentSession } from "@/lib/auth/session";
+import { reportCovers } from "@/lib/media/report-covers";
 import { getAdminDatabase } from "./runtime";
 import type { Report } from "@/lib/reports/service";
 import { REPORT_UUID } from "@/features/reports/policy";
@@ -61,8 +62,13 @@ export async function readQueue(queue: AdminQueue, state: string, cursor?: strin
   const sort = { createdAt: -1, _id: -1 } as const;
   if (queue === "reports") {
     const result = page(await reports.find({ ...filter, moderation: state as Report["moderation"] },
-      { projection: { title: 1, type: 1, createdAt: 1 }, sort, limit: pageSize + 1 }).toArray());
-    return { next: result.next, items: result.items.map(r => ({ id: r._id, title: r.title, detail: r.type, date: r.createdAt })) };
+      { projection: { title: 1, type: 1, category: 1, location: 1, occurredOn: 1, respondingTo: 1, attachments: 1, createdAt: 1 }, sort, limit: pageSize + 1 }).toArray());
+    const covers = await reportCovers(db, result.items, "report");
+    return { next: result.next, items: result.items.map(report => {
+      return { kind: "report" as const, id: report._id, title: report.title, detail: report.type, date: report.createdAt,
+        isFinderResponse: !!report.respondingTo, category: report.category, location: report.location, occurredOn: report.occurredOn,
+        cover: covers.get(report._id) ?? null };
+    }) };
   }
   type ClaimQueueRow = Pick<Claim, "_id" | "createdAt" | "claimantId"> & { title: string };
   const rows = await db.collection<Claim>("claims").aggregate<ClaimQueueRow>([
@@ -76,7 +82,7 @@ export async function readQueue(queue: AdminQueue, state: string, cursor?: strin
     { $project: { claimantId: 1, createdAt: 1, title: { $ifNull: [{ $first: "$report.title" }, "Report unavailable"] } } },
   ]).toArray();
   const result = page(rows);
-  return { next: result.next, items: result.items.map(c => ({ id: c._id, title: c.title, detail: "Claimant " + c.claimantId, date: c.createdAt })) };
+  return { next: result.next, items: result.items.map(c => ({ kind: "claim" as const, id: c._id, title: c.title, detail: "Claimant " + c.claimantId, date: c.createdAt })) };
 }
 export async function readCase(queue: AdminQueue, id: string, historyCursor?: string, claimsCursor?: string) {
   if (!REPORT_UUID.test(id)) notFound();
@@ -87,9 +93,10 @@ export async function readCase(queue: AdminQueue, id: string, historyCursor?: st
   });
   if (queue !== "reports" && !claim) notFound();
   const report = await db.collection<CaseReport>("reports").findOne({ ...community, _id: claim?.reportId ?? id, ...(claim ? { type: "found" as const } : {}) }, {
-    projection: { title: 1, type: 1, category: 1, location: 1, occurredOn: 1, description: 1, attachments: 1, approvedMedia: 1, moderation: 1, lifecycle: 1, moderationReason: 1, reservedClaimId: 1 },
+    projection: { title: 1, type: 1, category: 1, location: 1, occurredOn: 1, description: 1, respondingTo: 1, attachments: 1, approvedMedia: 1, moderation: 1, lifecycle: 1, moderationReason: 1, reservedClaimId: 1 },
   });
   if (!report) notFound();
+  report.attachments ??= [];
   const after = readCursor(historyCursor, true);
   const affected = claim ? [{ entityId: id }, { claimId: id }] : [{ entityId: id }, { reportId: id }, { linkedLostId: id }];
   const history = db.collection<Event>("audit_events").find({ ...community, $and: [
@@ -99,7 +106,13 @@ export async function readCase(queue: AdminQueue, id: string, historyCursor?: st
     sort: { createdAt: 1, _id: 1 }, limit: pageSize + 1 });
   const related = claims.find({ ...community, reportId: report._id, ...(claim ? { _id: { $ne: id } } : {}), ...queueWindow(claimsCursor) },
     { projection: claimRow, sort: { createdAt: -1, _id: -1 }, limit: pageSize + 1 });
-  const [events, others] = await Promise.all([history.toArray(), related.toArray()]);
-  return { report, claim, history: page(events), related: page(others) };
+  const [events, others, images, original] = await Promise.all([
+    history.toArray(), related.toArray(),
+    !claim && report.attachments.length ? db.collection<{ _id: string } & { reportId: string; resourceType: string }>("report_media")
+      .find({ reportId: report._id, _id: { $in: report.attachments }, resourceType: "image" }, { projection: { _id: 1 }, limit: 5 }).toArray() : [],
+    report.respondingTo ? db.collection<CaseReport>("reports").findOne({ ...community, _id: report.respondingTo, type: "lost" }, { projection: { title: 1, ownerId: 1, lifecycle: 1 } }) : null,
+  ]);
+  const imageIds = images.map(image => image._id);
+  return { report, claim, original, imageIds, history: page(events), related: page(others) };
 }
 

@@ -9,7 +9,7 @@ import { POST_ITEM_LOGIN_PATH, POST_MODAL_PATH } from "@/lib/auth/policy";
 import { ReportForm } from "@/features/reports/report-form";
 import "./post-modal.css";
 
-function PostContent({ onSubmitted }: { onSubmitted: () => void }) {
+export function PostContent({ onSubmitted, lost }: { lost?: { id: string; title: string; category: string }; onSubmitted: () => void }) {
   const [access, setAccess] = useState<AttachmentAccess | null>(null);
   async function reload() {
     try {
@@ -35,12 +35,12 @@ function PostContent({ onSubmitted }: { onSubmitted: () => void }) {
     <div className="post-modal-body"><p className="post-modal-copy">Verify your email before uploading attachments.</p><Link href={`/verify-email?next=${encodeURIComponent(POST_MODAL_PATH)}`} className="button button-yellow">Verify email</Link></div>
   );
   if (access.status === "unavailable") return (
-    <div className="post-modal-body"><p role="status" className="post-modal-copy">{access.message} You can submit a report without attachments.</p><ReportForm files={[]} onSubmitted={onSubmitted} /><button type="button" className="button button-yellow" onClick={() => void reload()}>Retry attachments</button></div>
+    <div className="post-modal-body"><p role="status" className="post-modal-copy">{access.message} You can submit a report without attachments.</p><ReportForm lost={lost} files={[]} onSubmitted={onSubmitted} /><button type="button" className="button button-yellow" onClick={() => void reload()}>Retry attachments</button></div>
   );
   return (
     <div className="post-modal-body">
-      <p className="post-modal-copy">Tell the community what you lost or found. Add item details and photos or videos below.</p>
-      <ReportForm files={access.status === "ready" ? access.files : []} onSubmitted={onSubmitted} onAttachmentsChanged={reload} />
+      <p className="post-modal-copy">{lost ? "Describe what you found, when and where you found it, and add photos. Staff review your response before it appears on this lost post." : "Tell the community what you lost or found. Add item details and photos or videos below."}</p>
+      <ReportForm lost={lost} files={access.status === "ready" ? access.files : []} onSubmitted={onSubmitted} onAttachmentsChanged={reload} />
     </div>
   );
 }

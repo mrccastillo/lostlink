@@ -55,7 +55,7 @@ async function fixture() {
   return { db, item, published, submit, run, rows, reports, claims, audit, returns };
 }
 
-test("publish uses original text and selected report media; hiding removes eligibility and updates My Posts", async () => {
+test("publish uses original text and all report media; hiding removes eligibility and updates My Posts", async () => {
   const { db, item, run, rows, submit, claims, reports, audit } = await fixture();
   const media = [randomUUID(), randomUUID()];
   await db.command({ insert: "media_uploads", documents: media.map(_id => ({ _id, ownerId: "finder", status: "ready",
@@ -63,13 +63,13 @@ test("publish uses original text and selected report media; hiding removes eligi
   const id = await item("found", "finder", media);
   const form = decision("publish", id, "pending", { title: "Forged text", approvedMedia: randomUUID(), reason: "" });
   await assert.rejects(run(form), /attachment/);
-  form.set("approvedMedia", media[1]);
+  form.delete("approvedMedia");
   await Promise.all([run(form), run(form)]);
   const report = await rows.findOne({ _id: id });
-  assert.deepEqual(report?.approvedMedia, [media[1]]);
+  assert.deepEqual(report?.approvedMedia, media);
   assert.equal(report?.title, "Canvas bag");
   assert.equal((await claims.load(member, id))?.item.available, true);
-  form.set("approvedMedia", media[0]);
+  form.set("reason", "Different decision reason");
   await assert.rejects(run(form), /already used/);
   await assert.rejects(run(decision("hide", id, "pending")), /published/);
   await assert.rejects(run(decision("hide", id, "published", { reason: " " })), /reason/);
@@ -81,7 +81,7 @@ test("publish uses original text and selected report media; hiding removes eligi
   assert.equal(await audit.countDocuments({ action: "report.published" }), 1);
 });
 
-test("media publication rejects another report's attachment and persists an empty allowlist by default", async () => {
+test("publication verifies attachment ownership before making the report visible", async () => {
   const { db, item, run, rows } = await fixture();
   const media = randomUUID();
   await db.command({ insert: "media_uploads", documents: [{ _id: media, ownerId: "finder", status: "ready",
@@ -89,8 +89,10 @@ test("media publication rejects another report's attachment and persists an empt
   const source = await item("found", "finder", [media]);
   const target = await item();
   await assert.rejects(run(decision("publish", target, "pending", { approvedMedia: media })), /attachment/);
-  await run(decision("publish", source, "pending"));
-  assert.deepEqual((await rows.findOne({ _id: source }))?.approvedMedia, []);
+  await db.collection("report_media").updateOne({ reportId: source }, { $set: { ownerId: "another-owner" } });
+  await assert.rejects(run(decision("publish", source, "pending")), /attachment/);
+  await run(decision("publish", target, "pending"));
+  assert.deepEqual((await rows.findOne({ _id: target }))?.approvedMedia, []);
 });
 
 test("a request ID reused concurrently for different cases commits only the winning confirmation", async () => {
@@ -229,3 +231,32 @@ test("duplicate reservation key without a receipt returns scoped state and prese
   assert.equal((await claims.list({ ...member, id: "second-member" }))[0].status, "pending");
   assert.equal(await audit.countDocuments({ claimId: second }), 0);
 });
+
+for (const ownsOriginal of [true, false]) {
+  test("finder response publication and handoff when claimant owns original: " + ownsOriginal, async () => {
+    const { item, reports, run, submit, returns } = await fixture();
+    const owner = { ...member, id: "lost-owner" };
+    const lostId = await item("lost", owner.id);
+    await run(decision("publish", lostId, "pending"));
+    const id = await reports.submit(member, { requestId: randomUUID(), type: "found", title: "Canvas bag",
+      description: "Found a green bag", location: "Library", category: "Bags & accessories", occurredOn: "2020-01-01", attachments: [] }, lostId);
+    assert.deepEqual(await reports.finderAlerts(owner), []);
+    await run(decision("publish", id, "pending"));
+    assert.deepEqual(await reports.finderAlerts(member), []);
+    await reports.dismissFinderAlert(member, id);
+    assert.deepEqual(await reports.finderAlerts(owner), [{ id, lostId, title: "Canvas bag" }]);
+    await reports.dismissFinderAlert(owner, id);
+    assert.deepEqual(await reports.finderAlerts(owner), []);
+    const claimId = await submit(id, ownsOriginal ? owner.id : "another-claimant");
+    await run(decision("approve", claimId, "pending"));
+    assert.equal((await reports.responses(owner, lostId))?.lifecycle, "open");
+    const handoff = decision("handoff", claimId, "approved", { handoffConfirmed: "yes" });
+    await run(handoff);
+    await run(handoff);
+    const result = await reports.responses(owner, lostId);
+    assert.equal(result?.lifecycle, ownsOriginal ? "returned" : "open");
+    assert.equal(result?.rows[0].lifecycle, "returned");
+    assert.equal((await returns.findOne({ claimId }))?.linkedLostId, ownsOriginal ? lostId : undefined);
+    assert.equal(await returns.countDocuments({ claimId }), 1);
+  });
+}

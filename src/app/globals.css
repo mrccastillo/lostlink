@@ -1374,3 +1374,10 @@ details[open] .faq-plus::after {
     transition: none !important;
   }
 }
+
+.photo-trigger { display: block; cursor: zoom-in; }
+.photo-trigger span { position: absolute; bottom: 8px; right: 8px; border: 1px solid var(--ink); background: var(--paper); padding: 4px 8px; font-size: 12px; }
+.site-dialog.photo-viewer { width: calc(100vw - 32px); max-height: 94dvh; padding: 16px; }
+.photo-viewer .dialog-heading { margin-bottom: 10px; }
+.full-photo-frame { position: relative; height: calc(90dvh - 100px); }
+.full-photo-frame img { object-fit: contain; }
