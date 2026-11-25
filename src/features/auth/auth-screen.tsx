@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
 import { isAuthConfigured } from "@/lib/auth/server";
-import { safeReturnPath } from "@/lib/auth/policy";
+import { accountHome, POST_LOGIN_PATH, safeReturnPath } from "@/lib/auth/policy";
 import { AuthForm, type AuthMode } from "./auth-form";
 
 type Props = {
@@ -14,7 +14,8 @@ async function AuthContent({ mode, searchParams }: Props) {
   const params = await searchParams;
   const returnTo = safeReturnPath(params.next);
   const session = await getCurrentSession();
-  if (session && (mode === "login" || mode === "signup")) redirect(returnTo);
+  if (session && (mode === "login" || mode === "signup"))
+    redirect(returnTo === POST_LOGIN_PATH ? accountHome(session.user) : returnTo);
   return (
     <AuthForm
       mode={mode}

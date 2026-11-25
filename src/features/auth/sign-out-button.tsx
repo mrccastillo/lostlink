@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth/client";
 import { toast } from "@/components/toasts";
 
 export function SignOutButton() {
-  const router = useRouter();
   const [pending, setPending] = useState(false);
   async function signOut() {
     if (pending) return;
@@ -17,9 +15,7 @@ export function SignOutButton() {
         toast.error("Couldn’t sign out. Please try again.");
         return;
       }
-      toast.success("You’re signed out.");
-      router.replace("/");
-      router.refresh();
+      window.location.replace("/login");
     } catch {
       toast.error("Couldn’t reach account services. Please try again.");
     } finally {

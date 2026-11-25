@@ -1,4 +1,6 @@
+import { seedPublishedReports, startAuthenticatedBrowserApp } from "./browser-auth-fixture.mjs";
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -7,13 +9,16 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { test } from "node:test";
 
-// Run against `npm run dev`: Strict Mode's effect replay triggers this regression.
-test("found-item claim links open a private proof preview without submitting evidence", { timeout: 90_000 }, async () => {
+// Run after npm run build against an isolated account.
+test("My matches opens a found item and submits private proof for review", { timeout: 90_000 }, async (context) => {
   const executable = [process.env.BROWSER_EXECUTABLE,
     "C:/Program Files/Google/Chrome/Application/chrome.exe",
     "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
   ].find((path) => path && existsSync(path));
   assert.ok(executable, "Set BROWSER_EXECUTABLE to an installed Chromium browser.");
+  const fixture = await startAuthenticatedBrowserApp(context, 3120);
+  const { baseURL, cookies } = fixture;
+  const { found } = await seedPublishedReports(fixture);
   const profile = await mkdtemp(join(tmpdir(), "lostlink-dialog-test-"));
   const browser = spawn(executable, ["--headless=new", "--no-first-run", "--no-default-browser-check",
     "--remote-debugging-port=0", `--user-data-dir=${profile}`, "about:blank"], { windowsHide: true, stdio: "ignore" });
@@ -52,23 +57,36 @@ test("found-item claim links open a private proof preview without submitting evi
     }
     await send("Page.enable");
     await send("Page.bringToFront");
-    await send("Page.navigate", { url: `${process.env.APP_URL || "http://localhost:3000"}/discover?q=headphones` });
+    await send("Network.setCookies", { cookies });
+    await send("Page.navigate", { url: `${baseURL}/discover?q=headphones` });
     await until("document.readyState === 'complete' && !!document.querySelector('.discover-heading button')", "Discover did not load");
-    await delay(1500);
-    const posts = [];
-    await send('Network.enable');
-    socket.addEventListener('message', (event) => {
-      const message = JSON.parse(event.data);
-      if (message.method === 'Network.requestWillBeSent' && message.params.request.method === 'POST') posts.push(message.params.request.url);
+    const matchesLink = 'nav[aria-label="Discover views"] a[href="/discover?type=matches"]';
+    await until(`!!document.querySelector(${JSON.stringify(matchesLink)})`, "My matches tab did not load");
+    await evaluate(`document.querySelector(${JSON.stringify(matchesLink)}).click()`);
+    await until("document.querySelector('.discover-empty h2')?.textContent === 'You have no open lost reports'", "Matches empty state did not appear");
+
+    const member = await fixture.db.collection("user").findOne({ email: fixture.credentials.email });
+    assert.ok(member);
+    await fixture.db.collection("reports").insertOne({
+      ...found, _id: randomUUID(), type: "lost", ownerId: String(member._id), moderation: "pending",
+      title: "My over-ear headphones",
     });
+    await send("Page.navigate", { url: `${baseURL}/discover?type=matches` });
+    await until("document.readyState === 'complete' && !!document.querySelector('.discover-match .discover-item-button')", "Found item match did not appear");
+    assert.equal(await evaluate("document.querySelector('.discover-match-group h2').textContent"), "My over-ear headphones");
+    assert.equal(await evaluate("document.querySelector('.discover-match-reasons').textContent.includes('Similar title')"), true);
+    for (const width of [390, 320, 1280]) {
+      await send('Emulation.setDeviceMetricsOverride', { width, height: 850, deviceScaleFactor: 1, mobile: width < 500 });
+      await until("document.documentElement.scrollWidth <= document.documentElement.clientWidth", 'My matches overflows at ' + width);
+    }
     await evaluate("document.querySelector('.discover-item-button').click()");
-    await until("!!document.querySelector('dialog[open] a[href=\"/claims/headphones\"]')", 'Found item has no claim button');
-    await evaluate("document.querySelector('dialog[open] a[href=\"/claims/headphones\"]').click()");
+    await until(`!!document.querySelector('dialog[open] a[href="/claims/${found._id}"]')`, 'Found item has no claim button');
+    await evaluate(`document.querySelector('dialog[open] a[href="/claims/${found._id}"]').click()`);
     await until("!!document.querySelector('.claim-form')", 'Claim proof page did not open');
     assert.equal(await evaluate("document.querySelector('.claim-item-summary h2').textContent"), 'Over-ear headphones');
     assert.equal(await evaluate("document.querySelectorAll('.claim-form textarea[required]').length"), 2);
     assert.equal(await evaluate("!!document.querySelector('.claim-confirmation input[required]')"), true);
-    assert.equal(await evaluate("document.querySelector('.claim-preview-banner').textContent.includes('no claim')"), true);
+    assert.equal(await evaluate("!document.querySelector('.claim-preview-banner')"), true);
     for (const width of [1280, 390, 320]) {
       await send('Emulation.setDeviceMetricsOverride', { width, height: 850, deviceScaleFactor: 1, mobile: width < 500 });
       await delay(150);
@@ -83,10 +101,11 @@ test("found-item claim links open a private proof preview without submitting evi
     })()`);
     await delay(100);
     await evaluate("document.querySelector('.claim-form').requestSubmit()");
-    await until("!!document.querySelector('.claim-success')", 'Preview did not finish');
-    assert.equal(await evaluate("document.querySelector('.claim-success').textContent.includes('No claim or proof was saved or sent')"), true);
-    assert.equal(posts.length, 0, 'Example proof must stay in the browser');
-    await send('Page.navigate', { url: `${process.env.APP_URL || 'http://localhost:3000'}/discover?q=camera` });
+    await until("document.querySelector('.claim-privacy')?.textContent.includes('Your claim is pending')", 'Submitted claim did not show its pending status');
+    const saved = await fixture.db.collection('claims').findOne({ reportId: found._id });
+    assert.equal(saved?.status, 'pending');
+    assert.equal(saved.identifyingDetail, 'A small blue sticker underneath the left ear cup.');
+    await send('Page.navigate', { url: `${baseURL}/discover?q=camera` });
     await until("document.readyState === 'complete' && !!document.querySelector('.discover-item-button')", 'Lost item did not load');
     await delay(1200);
     await evaluate("document.querySelector('.discover-item-button').click()");

@@ -9,9 +9,11 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "test:dialog": "node --test tests/dialog.browser.mjs",
+    "test:dialog": "node --import tsx --test tests/dialog.browser.mjs",
     "test:post-form": "node --import tsx --test tests/post-form.browser.mjs",
-    "test:claims": "node --test tests/claims.browser.mjs",
+    "test:claims": "node --import tsx --test tests/claims.browser.mjs",
+    "test:admin": "node --import tsx --test tests/admin-lifecycle.browser.mjs",
+    "auth:set-role": "node --env-file=.env.local --import tsx scripts/set-account-role.ts",
     "media:cleanup": "node --env-file=.env.local --conditions=react-server --import tsx scripts/cleanup-media.ts"
   },
   "dependencies": {
@@ -20,7 +22,7 @@
     "cloudinary": "^2.11.0",
     "file-type": "^21.3.4",
     "mongodb": "^7.7.0",
-    "next": "16.4.3",
+    "next": "16.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1",

@@ -24,6 +24,31 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 28px;
 }
+
+.route-loading {
+  padding-block: 2rem;
+}
+
+.navigation-pending {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+  margin-inline-start: 0.4rem;
+  border: 2px solid currentColor;
+  border-inline-end-color: transparent;
+  border-radius: 50%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .navigation-pending {
+    animation: navigation-spin 700ms linear infinite;
+  }
+}
+
+@keyframes navigation-spin {
+  to { transform: rotate(360deg); }
+}
 body {
   margin: 0;
   background: var(--paper);
@@ -1349,3 +1374,10 @@ details[open] .faq-plus::after {
     transition: none !important;
   }
 }
+
+.photo-trigger { display: block; cursor: zoom-in; }
+.photo-trigger span { position: absolute; bottom: 8px; right: 8px; border: 1px solid var(--ink); background: var(--paper); padding: 4px 8px; font-size: 12px; }
+.site-dialog.photo-viewer { width: calc(100vw - 32px); max-height: 94dvh; padding: 16px; }
+.photo-viewer .dialog-heading { margin-bottom: 10px; }
+.full-photo-frame { position: relative; height: calc(90dvh - 100px); }
+.full-photo-frame img { object-fit: contain; }

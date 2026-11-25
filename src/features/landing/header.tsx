@@ -1,11 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowUpRight, CloseIcon, MenuIcon } from "@/components/icons";
-import { ReportButton } from "@/features/landing/report-button";
+import { ReportLoginLink } from "@/features/landing/report-login-link";
 
 const links = [
-  { href: "/discover", label: "Discover" },
   { href: "#board", label: "The board" },
   { href: "#how-it-works", label: "How it works" },
   { href: "#questions", label: "Good questions" },
@@ -40,6 +40,7 @@ export function Header() {
         className={`main-navigation${open ? " is-open" : ""}`}
         aria-label="Main navigation"
       >
+        <Link href="/discover" onNavigate={() => setOpen(false)}>Discover</Link>
         {links.map((link) => (
           <a key={link.href} href={link.href} onClick={() => setOpen(false)}>
             {link.label}
@@ -47,7 +48,7 @@ export function Header() {
         ))}
       </nav>
       <div className="header-actions">
-        <ReportButton className="button button-yellow header-cta" />
+        <ReportLoginLink className="button button-yellow header-cta" />
         <button
           ref={menuRef}
           className="icon-button mobile-menu"

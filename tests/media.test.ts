@@ -5,9 +5,25 @@ import { MongoMemoryReplSet } from "mongodb-memory-server";
 import sharp from "sharp";
 import { readCloudinaryConfig } from "../src/lib/media/config";
 import { prepareMedia } from "../src/lib/media/prepare";
-import { IMAGE_MAX_BYTES, VIDEO_MAX_BYTES, MEDIA_RETENTION_MS } from "../src/lib/media/policy";
-import { createMediaService, ensureMediaIndexesV1 } from "../src/lib/media/service";
+import { IMAGE_MAX_BYTES, VIDEO_MAX_BYTES, MEDIA_RETENTION_MS, MediaError } from "../src/lib/media/policy";
+import { describeUploadFailure } from "../src/lib/media/upload-error";
+import { createMediaService, ensureMediaIndexesV1, ensureMediaIndexesV2 } from "../src/lib/media/service";
 import type { MediaLocation, MediaStorage } from "../src/lib/media/cloudinary";
+
+test("upload failures expose safe diagnostics without provider secrets", () => {
+  const detail = { code: "ECONNRESET", message: "secret signed URL and private asset path" };
+  assert.deepEqual(describeUploadFailure(detail), {
+    code: "ECONNRESET", status: undefined,
+    message: "Could not connect to the upload service. Please try again.",
+  });
+  assert.match(describeUploadFailure({ http_code: 499 }).message, /timed out/);
+  assert.match(describeUploadFailure({ http_code: 401 }).message, /authentication/);
+  assert.match(describeUploadFailure({ http_code: 403 }).message, /denied permission/);
+  assert.match(describeUploadFailure({ code: "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" }).message, /secure connection/);
+  assert.equal(describeUploadFailure({ code: detail.message, http_code: 9999 }).code, "UNKNOWN");
+  assert.equal(describeUploadFailure({ http_code: 9999 }).status, undefined);
+  assert.equal(JSON.stringify(describeUploadFailure(detail)).includes(detail.message), false);
+});
 
 async function imageFile() {
   const bytes = await sharp({ create: {
@@ -50,15 +66,14 @@ test("media ownership, limits, concurrent uploads, and durable cleanup", { timeo
     await client.connect();
     const db = client.db("lostlink_media_test");
     await ensureMediaIndexesV1(db);
-    await ensureMediaIndexesV1(db);
     const uploads: string[] = [];
     const deletions: string[] = [];
-    let failUpload = false;
+    let failUpload: Error | null = null;
     let failDelete = false;
     const storage: MediaStorage = {
       async upload(publicId) {
         uploads.push(publicId);
-        if (failUpload) throw new Error("private provider error");
+        if (failUpload) throw failUpload;
       },
       async remove(location) {
         if (failDelete) throw new Error("provider offline");
@@ -70,6 +85,32 @@ test("media ownership, limits, concurrent uploads, and durable cleanup", { timeo
     // Legacy approval fields must not restrict verified members.
     const actor = { id: "member-a", emailVerified: true, membershipStatus: "pending" };
     const other = { ...actor, id: "member-b" };
+
+    await t.test("legacy expired reservations release slots without losing cleanup records or other users' files", async () => {
+      const legacy = { ...actor, id: "legacy-failures" };
+      const expired = new Date(Date.now() - 60_000);
+      await db.collection<{ _id: string }>("media_uploads").insertMany(Array.from({ length: 5 }, (_, slot) => ({
+        _id: crypto.randomUUID(), ownerId: legacy.id, slot, status: "uploading",
+        publicId: `legacy/${slot}`, resourceType: "image", format: "jpg", createdAt: expired, expiresAt: expired,
+      })));
+      await ensureMediaIndexesV2(db);
+      await ensureMediaIndexesV2(db);
+      await service.upload(other, await imageFile());
+      await service.upload(legacy, await imageFile());
+      assert.equal((await service.list(legacy)).length, 1);
+      assert.equal(await db.collection("media_uploads").countDocuments({ ownerId: legacy.id, status: "deleting" }), 5);
+      assert.equal(await service.cleanup(), 5);
+      const [otherFile] = await service.list(other);
+      assert.ok(otherFile);
+      await service.remove(other, otherFile.id);
+      const [file] = await service.list(legacy);
+      await service.remove(legacy, file.id);
+      const indexes = await db.collection("media_uploads").indexes();
+      assert.ok(indexes.some(index => index.name === "media_owner_active_slot_v2" && index.unique));
+      assert.equal(indexes.some(index => index.name === "media_owner_slot_v1"), false);
+      uploads.length = 0;
+      deletions.length = 0;
+    });
 
     await t.test("unauthorized and unverified actors cannot read or mutate media", async () => {
       for (const invalid of [null, { ...actor, emailVerified: false }]) {
@@ -112,9 +153,9 @@ test("media ownership, limits, concurrent uploads, and durable cleanup", { timeo
     });
 
     await t.test("provider failures preserve cleanup records and hide attachments", async () => {
-      failUpload = true;
+      failUpload = new Error("private provider error");
       await assert.rejects(service.upload(other, await imageFile()), /Upload failed/);
-      failUpload = false;
+      failUpload = null;
       assert.deepEqual(await service.list(other), []);
       assert.equal(await db.collection("media_uploads").countDocuments({ ownerId: other.id }), 1);
       failDelete = true;
@@ -123,6 +164,31 @@ test("media ownership, limits, concurrent uploads, and durable cleanup", { timeo
       failDelete = false;
       assert.equal(await service.cleanup(), 1);
       assert.equal(await service.cleanup(), 0);
+    });
+
+    await t.test("safe provider errors reach the form while cleanup remains durable", async () => {
+      const message = "The upload timed out. Please try again.";
+      failUpload = new MediaError(message);
+      await assert.rejects(service.upload(other, await imageFile()), { message });
+      failUpload = null;
+      assert.deepEqual(await service.list(other), []);
+      assert.equal(await service.cleanup(), 1);
+    });
+
+    await t.test("failed provider cleanup does not block a later upload", async () => {
+      const retryActor = { ...actor, id: "retry-member" };
+      failUpload = new Error("provider offline");
+      await assert.rejects(service.upload(retryActor, await imageFile()), /Upload failed/);
+      failUpload = null;
+      failDelete = true;
+      await assert.rejects(service.cleanup());
+      await service.upload(retryActor, await imageFile());
+      assert.equal((await service.list(retryActor)).length, 1);
+      assert.equal(await db.collection("media_uploads").countDocuments({ ownerId: retryActor.id }), 2);
+      failDelete = false;
+      assert.equal(await service.cleanup(), 1);
+      const [file] = await service.list(retryActor);
+      await service.remove(retryActor, file.id);
     });
 
     await t.test("expiry denies downloads before the cleanup worker runs", async () => {

@@ -52,10 +52,14 @@
 .media-preview-visual { aspect-ratio: 4 / 3; background: #e6e4d9; overflow: hidden; }
 .media-preview-visual img, .media-preview-visual video { width: 100%; height: 100%; object-fit: contain; }
 .media-preview > p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; margin: 8px 0; }
-.media-preview-status { color: var(--muted); font-size: 10px; }
+.media-preview-status { display: block; color: var(--muted); font-size: 10px; }
 .attachment-panel .media-include { display: flex; gap: 6px; align-items: center; font-size: 10px; font-weight: 400; }
-.attachment-panel .media-remove { border: 0; margin: 8px 0 0; padding: 4px 0; font-size: 10px; text-decoration: underline; }
-.attachment-panel .media-upload-button { width: 100%; margin: 0 0 8px; background: var(--acid); }
+.attachment-panel .media-remove { display: block; border: 0; margin: 8px 0 0; padding: 4px 0; font-size: 10px; text-decoration: underline; }
+.attachment-panel .media-upload-button { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; margin: 0 0 8px; background: var(--acid); }
+.media-upload-spinner { width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; }
+@media (prefers-reduced-motion: no-preference) {
+  .media-upload-spinner { animation: navigation-spin .7s linear infinite; }
+}
 .media-existing-placeholder { aspect-ratio: 4 / 3; background: #e6e4d9; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font-size: 15px; }
 .media-existing-placeholder span { font-size: 9px; color: var(--muted); }
 .media-preview .report-error { white-space: normal; overflow-wrap: anywhere; }

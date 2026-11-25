@@ -1,42 +1,53 @@
 "use client";
 
+import { PostContent } from "@/features/post/post-modal";
 import Image from "next/image";
 import Link from "next/link";
 import { claimPath } from "@/features/claims/policy";
 import { useState } from "react";
+import { ExpandablePhoto } from "@/components/expandable-photo";
 import { Dialog } from "@/components/dialog";
 import { ArrowUpRight } from "@/components/icons";
-import type { sampleReports } from "@/features/landing/content";
+import type { Listing } from "./listings";
 
-type Item = (typeof sampleReports)[number];
+
 const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
-export function ItemCard({ item }: { item: Item }) {
+export function ItemCard({ item }: { item: Listing }) {
   const [open, setOpen] = useState(false);
-  const dateLabel = `${item.status === "found" ? "Found" : "Lost"} on`;
+  const [responding, setResponding] = useState(false);
+  const dateLabel = `${item.type === "found" ? "Found" : "Lost"} on`;
   const date = dateFormat.format(new Date(`${item.occurredOn}T00:00:00Z`));
+  const cover = item.media[0];
   return (
     <>
       <article className="discover-item">
-        <button className="discover-item-button" onClick={() => setOpen(true)} aria-label={`View example: ${item.name}`}>
+        <button className="discover-item-button" onClick={() => setOpen(true)} aria-label={`View item: ${item.title}`}>
           <span className="discover-item-photo">
-            <Image src={item.image} alt={item.alt} fill sizes="(max-width: 600px) 90vw, (max-width: 1100px) 42vw, 28vw" placeholder="blur" />
-            <span className={`discover-item-badge ${item.status}`}>{item.status === "found" ? "Found" : "Lost"}</span>
+            {cover?.kind === "image" ? <Image src={cover.url} alt="" fill unoptimized sizes="(max-width: 600px) 90vw, 28vw" /> :
+              <span className="discover-photo-fallback">{cover ? "Video available" : "No photo"}</span>}
+            <span className={`discover-item-badge ${item.type}`}>{item.type === "found" ? "Found" : "Lost"}</span>
           </span>
           <span className="discover-item-category">{item.category}</span>
-          <span className="discover-item-name">{item.name}<ArrowUpRight /></span>
+          <span className="discover-item-name">{item.title}<ArrowUpRight /></span>
           <span className="discover-item-location">{item.location}</span>
           <span className="discover-item-date">{dateLabel} <time dateTime={item.occurredOn}>{date}</time></span>
         </button>
       </article>
-      <Dialog open={open} onClose={() => setOpen(false)} title={item.name}>
-        <div className="detail-photo"><Image src={item.image} alt={item.alt} fill sizes="(max-width: 600px) 85vw, 480px" /></div>
-        <p className="eyebrow dialog-label">{item.status} / {item.location}</p>
+      <Dialog open={open} onClose={() => setOpen(false)} title={item.title}>
+        {open && item.media.map((file, index) => file.kind === "image"
+          ? <ExpandablePhoto key={file.url} src={file.url} alt={`${item.title}, photo ${index + 1}`} unoptimized />
+          : <div key={file.url} className="detail-photo"><video src={file.url} controls preload="metadata" aria-label={`${item.title}, video ${index + 1}`} /></div>)}
+        <p className="eyebrow dialog-label">{item.type} / {item.category} / {item.location}</p>
         <p className="discover-item-date">{dateLabel} <time dateTime={item.occurredOn}>{date}</time></p>
         <p className="dialog-copy">{item.description}</p>
-        <p className="dialog-note">This is an example listing. Keep identifying details and contact information private.</p>
-        {item.status === "found" && <Link href={claimPath(item.id)} onClick={() => setOpen(false)} className="button button-yellow claim-item-button">Claim / verify ownership <ArrowUpRight /></Link>}
+        <p className="dialog-note">Item status: {item.lifecycle}</p>
+        {item.type === "lost" && item.lifecycle === "open" && <button className="button button-yellow" onClick={() => { setOpen(false); setResponding(true); }}>I found this item</button>}
+        {item.canClaim && <Link href={claimPath(item.id)} onClick={() => setOpen(false)} className="button button-yellow claim-item-button">Claim / verify ownership <ArrowUpRight /></Link>}
       </Dialog>
+      {responding && <Dialog open onClose={() => setResponding(false)} title="I found this item" className="post-dialog">
+        <PostContent lost={item} onSubmitted={() => setResponding(false)} />
+      </Dialog>}
     </>
   );
 }

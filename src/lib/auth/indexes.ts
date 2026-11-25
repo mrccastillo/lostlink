@@ -4,6 +4,8 @@ import type { Db } from "mongodb";
 // token indexes). Add only app-specific retention and credential constraints.
 export async function ensureAuthIndexes(db: Db) {
   await Promise.all([
+    db.collection("admin_grants").createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0, name: "admin_grant_expiry_v1" }),
+    db.collection("user").createIndex({ role: 1, _id: -1 }, { name: "admin_directory_role_v1" }),
     db
       .collection("session")
       .createIndex(

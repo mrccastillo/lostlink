@@ -12,6 +12,11 @@ export async function transferTemporaryMedia(db: Db, session: ClientSession, own
   if (files.length !== ids.length) throw new MediaError("An attachment is unavailable. Remove it or upload it again.");
   const collection = target.kind === "report" ? "report_media" : "claim_evidence";
   const references = target.kind === "report" ? { reportId: target.id } : { claimId: target.id };
-  await db.collection<{ _id: string; ownerId: string; publicId: string; resourceType: string; format: string; reportId?: string; claimId?: string }>(collection).insertMany(files.map((file) => ({ _id: file._id, ownerId, publicId: file.publicId, resourceType: file.resourceType, format: file.format, ...references })), { session });
+  const destination = db.collection<{ _id: string; ownerId: string; publicId: string; resourceType: string; format: string; reportId?: string; claimId?: string }>(collection);
+  // MongoDB driver 7's insertMany re-applies the client timeout inside withTransaction,
+  // which the driver rejects. At most five sequential inserts share this transaction.
+  for (const file of files) {
+    await destination.insertOne({ _id: file._id, ownerId, publicId: file.publicId, resourceType: file.resourceType, format: file.format, ...references }, { session });
+  }
   await uploads.deleteMany({ _id: { $in: ids }, ownerId, status: "ready" }, { session });
 }

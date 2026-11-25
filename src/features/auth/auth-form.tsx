@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { toast } from "@/components/toasts";
 import { ArrowUpRight } from "@/components/icons";
+import { NavigationPending } from "@/components/navigation-pending";
 import { authClient } from "@/lib/auth/client";
-import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from "@/lib/auth/policy";
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, POST_LOGIN_PATH, accountHome } from "@/lib/auth/policy";
 
 export type AuthMode = "login" | "signup" | "forgot" | "reset" | "verify";
+
+const subscribeToHydration = () => () => {};
 
 const copy = {
   login: {
@@ -73,6 +76,7 @@ export function AuthForm({
   invalidLink,
 }: Props) {
   const router = useRouter();
+  const hydrated = useSyncExternalStore(subscribeToHydration, () => true, () => false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -112,11 +116,26 @@ export function AuthForm({
       return;
     }
     setPending(true);
+    let leaving = false;
     try {
-      let result;
       if (mode === "login") {
-        result = await authClient.signIn.email({ email, password });
-      } else if (mode === "signup") {
+        const result = await authClient.signIn.email({ email, password });
+        if (result.error) {
+          toast.error(errorMessage(result.error, mode), { id: "auth-error" });
+          return;
+        }
+        const user = result.data.user;
+        const destination = returnTo === POST_LOGIN_PATH
+          ? accountHome({ emailVerified: user.emailVerified, role: "role" in user ? user.role : undefined })
+          : returnTo;
+        // Read the new session from the server instead of reusing signed-out route data.
+        window.location.replace(destination);
+        leaving = true;
+        return;
+      }
+
+      let result;
+      if (mode === "signup") {
         result = await authClient.signUp.email({
           name,
           email,
@@ -145,11 +164,7 @@ export function AuthForm({
       }
       form.reset();
       setShowPassword(false);
-      if (mode === "login") {
-        toast.success("You’re logged in.");
-        router.replace(returnTo);
-        router.refresh();
-      } else if (mode === "signup") {
+      if (mode === "signup") {
         toast.success("If your account needs verification, check your inbox for a link.");
         router.replace(`/login${query}`);
       } else if (mode === "reset") {
@@ -172,7 +187,7 @@ export function AuthForm({
         { id: "auth-error" },
       );
     } finally {
-      setPending(false);
+      if (!leaving) setPending(false);
     }
   }
 
@@ -185,12 +200,14 @@ export function AuthForm({
             aria-current={mode === "login" ? "page" : undefined}
           >
             Log in
+            <NavigationPending />
           </Link>
           <Link
             href={`/signup${query}`}
             aria-current={mode === "signup" ? "page" : undefined}
           >
             Sign up
+            <NavigationPending />
           </Link>
         </nav>
       )}
@@ -212,8 +229,8 @@ export function AuthForm({
           Open the link in your password reset email to continue.
         </p>
       )}
-      <form onSubmit={submit} aria-busy={pending}>
-        <fieldset disabled={pending || invalidReset}>
+      <form method="post" onSubmit={submit} aria-busy={!hydrated || pending}>
+        <fieldset disabled={!hydrated || pending || invalidReset}>
           {mode === "signup" && (
             <label className="auth-field">
               Your name

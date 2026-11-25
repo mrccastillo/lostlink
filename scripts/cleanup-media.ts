@@ -1,7 +1,7 @@
 import { MongoClient } from "mongodb";
 import { readCloudinaryConfig } from "../src/lib/media/config";
 import { createCloudinaryStorage } from "../src/lib/media/cloudinary";
-import { createMediaService, ensureMediaIndexesV1 } from "../src/lib/media/service";
+import { createMediaService, ensureMediaIndexesV2 } from "../src/lib/media/service";
 
 async function main() {
   const config = readCloudinaryConfig(process.env);
@@ -11,7 +11,7 @@ async function main() {
   try {
     await client.connect();
     const db = client.db(process.env.MONGODB_DB?.trim() || "lostlink");
-    await ensureMediaIndexesV1(db);
+    await ensureMediaIndexesV2(db);
     const removed = await createMediaService(db, createCloudinaryStorage(config)).cleanup();
     console.log(`Removed ${removed} expired attachments (maximum 100 per run).`);
   } finally {

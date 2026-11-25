@@ -4,7 +4,7 @@ export type AuthConfig = {
   secret: string;
   baseURL: string;
   emailApiKey: string;
-  emailFrom: string;
+  emailSenderAddress: string;
 };
 
 type Environment = Record<string, string | undefined>;
@@ -16,8 +16,8 @@ export function readAuthConfig(env: Environment): AuthConfig | null {
   const databaseName = env.MONGODB_DB?.trim() || "lostlink";
   const secret = env.BETTER_AUTH_SECRET;
   const baseURL = env.BETTER_AUTH_URL?.trim();
-  const emailApiKey = env.RESEND_API_KEY?.trim();
-  const emailFrom = env.AUTH_EMAIL_FROM?.trim();
+  const emailApiKey = env.BREVO_API_KEY?.trim();
+  const emailSenderAddress = env.BREVO_SENDER_EMAIL?.trim();
 
   if (
     !mongoUri ||
@@ -26,7 +26,8 @@ export function readAuthConfig(env: Environment): AuthConfig | null {
     secret.length < 32 ||
     !baseURL ||
     !emailApiKey ||
-    !emailFrom
+    !emailSenderAddress ||
+    !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(emailSenderAddress)
   )
     return null;
 
@@ -49,7 +50,7 @@ export function readAuthConfig(env: Environment): AuthConfig | null {
       secret,
       baseURL: url.origin,
       emailApiKey,
-      emailFrom,
+      emailSenderAddress,
     };
   } catch {
     return null;

@@ -2,6 +2,8 @@ import "server-only";
 import { v2 as cloudinary } from "cloudinary";
 import type { CloudinaryConfig } from "./config";
 import type { PreparedMedia } from "./prepare";
+import { MediaError } from "./policy";
+import { describeUploadFailure } from "./upload-error";
 
 export type MediaLocation = {
   publicId: string;
@@ -36,13 +38,28 @@ export function createCloudinaryStorage(config: CloudinaryConfig): MediaStorage 
           ? { transformation: [{ flags: "strip_profile" }] }
           : {}),
       }, (error, result) => {
-        if (error || !result) return reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED"));
+        if (error || !result) {
+          const failure = describeUploadFailure(error);
+          console.error(`MEDIA_PROVIDER_UPLOAD_FAILED status=${failure.status ?? "unknown"} code=${failure.code}`);
+          return reject(new MediaError(failure.message));
+        }
         if (result.public_id !== publicId || result.resource_type !== media.resourceType ||
-            result.format !== media.format || !(result.width > 0) || !(result.height > 0))
+            result.format !== media.format || !(result.width > 0) || !(result.height > 0)) {
+          console.error("MEDIA_PROVIDER_RESPONSE_INVALID", {
+            publicIdMatches: result.public_id === publicId,
+            resourceTypeMatches: result.resource_type === media.resourceType,
+            formatMatches: result.format === media.format,
+            hasDimensions: result.width > 0 && result.height > 0,
+          });
           return reject(new Error("MEDIA_PROVIDER_RESPONSE_INVALID"));
+        }
         resolve();
       });
-      stream.on("error", () => reject(new Error("MEDIA_PROVIDER_UPLOAD_FAILED")));
+      stream.on("error", (error) => {
+        const failure = describeUploadFailure(error);
+        console.error(`MEDIA_PROVIDER_UPLOAD_STREAM_FAILED status=${failure.status ?? "unknown"} code=${failure.code}`);
+        reject(new MediaError(failure.message));
+      });
       stream.end(media.bytes);
     }),
     async remove(location) {

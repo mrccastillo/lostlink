@@ -1,9 +1,10 @@
 import type { Db, MongoClient } from "mongodb";
 import { REPORT_CATEGORIES, REPORT_UUID, ReportError, validateReport, type ReportInput } from "@/features/reports/policy";
+import { reportCovers } from "@/lib/media/report-covers";
 import { transferTemporaryMedia } from "@/lib/media/transfer";
 
 type Actor = { id: string; emailVerified: boolean };
-type Report = Omit<ReportInput, "requestId"> & { _id: string; ownerId: string; organization: "community"; moderation: "pending" | "published" | "hidden"; lifecycle: "open" | "reserved" | "returned" | "archived"; createdAt: Date };
+export type Report = Omit<ReportInput, "requestId"> & { respondingTo?: string; unreadFor?: string; approvedMedia?: string[]; _id: string; ownerId: string; organization: "community"; moderation: "pending" | "published" | "hidden"; lifecycle: "open" | "reserved" | "returned" | "archived"; createdAt: Date };
 
 export function createReportService(db: Db, client: MongoClient) {
   return {
@@ -21,13 +22,42 @@ export function createReportService(db: Db, client: MongoClient) {
         ...(before ? { $or: [{ createdAt: { $lt: before.date } }, { createdAt: before.date, _id: { $lt: before.id } }] } : {}),
       }, { projection: { _id: 1, type: 1, title: 1, category: 1, location: 1, occurredOn: 1, description: 1, moderation: 1, lifecycle: 1, createdAt: 1, attachments: 1 } }).sort({ createdAt: -1, _id: -1 }).limit(21).toArray();
       const page = records.slice(0, 20);
+      const covers = await reportCovers(db, page, "own");
       const last = page.at(-1);
       return {
-        items: page.map((record) => ({ id: record._id, type: record.type, title: record.title, category: record.category, location: record.location, occurredOn: record.occurredOn, description: record.description, moderation: record.moderation, lifecycle: record.lifecycle, createdAt: record.createdAt.toISOString(), attachmentCount: record.attachments.length })),
+        items: page.map((record) => ({ id: record._id, cover: covers.get(record._id) ?? null, type: record.type, title: record.title, category: record.category, location: record.location, occurredOn: record.occurredOn, description: record.description, moderation: record.moderation, lifecycle: record.lifecycle, createdAt: record.createdAt.toISOString(), attachmentCount: record.attachments.length })),
         nextCursor: records.length > 20 && last ? `${last.createdAt.toISOString()}_${last._id}` : null,
       };
     },
-    async submit(actor: Actor | null, raw: ReportInput) {
+    async finderAlerts(actor: Actor | null) {
+      if (!actor?.emailVerified) return [];
+      return db.collection<Report>("reports").aggregate<{ id: string; lostId: string; title: string }>([
+        { $match: { organization: "community", type: "found", moderation: "published", unreadFor: actor.id } },
+        { $sort: { createdAt: -1, _id: -1 } },
+        { $lookup: { from: "reports", localField: "respondingTo", foreignField: "_id", as: "original",
+          pipeline: [{ $match: { ownerId: actor.id, organization: "community", type: "lost", moderation: "published" } }, { $project: { title: 1 } }] } },
+        { $unwind: "$original" },
+        { $limit: 5 },
+        { $project: { _id: 0, id: "$_id", lostId: "$original._id", title: "$original.title" } },
+      ]).toArray();
+    },
+    async dismissFinderAlert(actor: Actor | null, id: string) {
+      if (!actor?.emailVerified || !REPORT_UUID.test(id)) return;
+      await db.collection<Report>("reports").updateOne({ _id: id, unreadFor: actor.id, organization: "community",
+        type: "found", moderation: "published" }, { $unset: { unreadFor: "" } });
+    },
+    async responses(actor: Actor | null, id: string, responseId?: string) {
+      if (!actor?.emailVerified || !REPORT_UUID.test(id) || (responseId !== undefined && !REPORT_UUID.test(responseId))) return null;
+      const reports = db.collection<Report>("reports");
+      const parent = await reports.findOne({ _id: id, organization: "community", type: "lost", moderation: "published" }, { projection: { title: 1, lifecycle: 1 } });
+      if (!parent) return null;
+      const rows = await reports.find({ ...(responseId ? { _id: responseId } : {}), respondingTo: id, organization: "community", type: "found", moderation: "published" },
+        { projection: { title: 1, description: 1, location: 1, occurredOn: 1, lifecycle: 1, ownerId: 1, approvedMedia: 1 } })
+        .sort({ createdAt: -1, _id: -1 }).limit(50).toArray();
+      return { title: parent.title, lifecycle: parent.lifecycle, rows: rows.map(row => ({ id: row._id, lifecycle: row.lifecycle, description: row.description, location: row.location, date: row.occurredOn,
+        canClaim: row.lifecycle === "open" && row.ownerId !== actor.id, media: row.approvedMedia ?? [] })) };
+    },
+    async submit(actor: Actor | null, raw: ReportInput, respondingTo?: string) {
       if (!actor?.emailVerified) throw new ReportError("Sign in with a verified account before posting.");
       const input = validateReport(raw);
       const reports = db.collection<Report>("reports");
@@ -39,6 +69,13 @@ export function createReportService(db: Db, client: MongoClient) {
             if (existing.ownerId !== actor.id) throw new ReportError("Please reopen the form and try again.");
             return;
           }
+          if (respondingTo !== undefined) {
+            if (!REPORT_UUID.test(respondingTo) || input.type !== "found") throw new ReportError("Choose an open lost post.");
+            const parent = await reports.findOne({ _id: respondingTo, organization: "community", type: "lost", moderation: "published", lifecycle: "open" }, { session });
+            if (!parent) throw new ReportError("This lost post is unavailable for a finder response.");
+            input.title = parent.title;
+            input.category = parent.category;
+          }
           const now = new Date();
           const counter = await db.collection<{ _id: string; count: number; expiresAt: Date }>("report_limits").findOneAndUpdate(
             { _id: `${actor.id}:${Math.floor(now.getTime() / 3_600_000)}` },
@@ -47,7 +84,7 @@ export function createReportService(db: Db, client: MongoClient) {
           );
           if (!counter || counter.count > 5) throw new ReportError("You can submit five reports per hour. Please try again later.");
           const { requestId, ...details } = input;
-          await reports.insertOne({ ...details, _id: requestId, ownerId: actor.id, organization: "community", moderation: "pending", lifecycle: "open", createdAt: now }, { session });
+          await reports.insertOne({ ...details, ...(respondingTo ? { respondingTo } : {}), _id: requestId, ownerId: actor.id, organization: "community", moderation: "pending", lifecycle: "open", createdAt: now }, { session });
           await transferTemporaryMedia(db, session, actor.id, input.attachments, { kind: "report", id: requestId });
           await db.collection("audit_events").insertOne({ actorId: actor.id, organization: "community", action: "report.submitted", entityId: requestId, createdAt: now }, { session });
         });
@@ -80,6 +117,8 @@ export async function ensureReportSchemaV1(db: Db) {
   await Promise.all([
     db.collection("reports").createIndex({ ownerId: 1, createdAt: -1 }, { name: "reports_owner_v1" }),
     db.collection("reports").createIndex({ ownerId: 1, organization: 1, createdAt: -1, _id: -1 }, { name: "reports_owner_page_v2" }),
+    db.collection("reports").createIndex({ unreadFor: 1, moderation: 1, createdAt: -1 }, { name: "finder_unread_v1", partialFilterExpression: { unreadFor: { $exists: true } } }),
+    db.collection("reports").createIndex({ respondingTo: 1, moderation: 1, createdAt: -1, _id: -1 }, { sparse: true, name: "reports_finder_responses_v1" }),
     db.collection("report_media").createIndex({ reportId: 1 }, { name: "report_media_report_v1" }),
     db.collection("report_limits").createIndex({ expiresAt: 1 }, { name: "report_rate_expiry_v1", expireAfterSeconds: 0 }),
   ]);

@@ -17,7 +17,7 @@ test("claim validation rejects examples, missing confirmation, invalid proof, an
 });
 test("claims isolate proof and enforce eligibility, atomic evidence transfer, and duplicate protection", { timeout: 120_000 }, async () => {
   const replica = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
-  const client = new MongoClient(replica.getUri());
+  const client = new MongoClient(replica.getUri(), { timeoutMS: 10_000 });
   try {
     await client.connect(); const db = client.db("isolated_claim_test");
     await ensureReportSchemaV1(db); await ensureClaimSchemaV1(db); await ensureClaimSchemaV1(db);

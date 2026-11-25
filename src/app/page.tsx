@@ -1,16 +1,18 @@
 ﻿import Image from "next/image";
+import Link from "next/link";
 import { ArrowRight, ArrowUpRight, Asterisk } from "@/components/icons";
 import { CommunityBoard } from "@/features/landing/community-board";
 import { backpack, faqs, recoverySteps } from "@/features/landing/content";
 import { Header } from "@/features/landing/header";
-import { ReportButton } from "@/features/landing/report-button";
+import { ReportLoginLink } from "@/features/landing/report-login-link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getCurrentSession } from "@/lib/auth/session";
-import { POST_LOGIN_PATH } from "@/lib/auth/policy";
+import { accountHome } from "@/lib/auth/policy";
 
 async function LandingPage() {
-  if (await getCurrentSession()) redirect(POST_LOGIN_PATH);
+  const session = await getCurrentSession();
+  if (session) redirect(accountHome(session.user));
   return (
     <div id="top">
       <a className="skip-link" href="#main">
@@ -41,13 +43,13 @@ async function LandingPage() {
                 Your stuff deserves a comeback.
               </p>
               <div className="hero-actions">
-                <a href="/discover" className="button button-dark">
+                <Link href="/discover" className="button button-dark">
                   Hit the board
                   <ArrowUpRight />
-                </a>
-                <ReportButton className="text-button">
+                </Link>
+                <ReportLoginLink className="text-button">
                   Found something?
-                </ReportButton>
+                </ReportLoginLink>
               </div>
             </div>
             <div className="hero-photo-scene">
@@ -196,7 +198,7 @@ async function LandingPage() {
             </h2>
             <p>Found a thing? Do a good thing.</p>
           </div>
-          <ReportButton className="button button-yellow closing-button" />
+          <ReportLoginLink className="button button-yellow closing-button" />
         </section>
       </main>
       <footer className="site-footer page-gutter">

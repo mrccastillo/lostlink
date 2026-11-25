@@ -16,7 +16,9 @@ type Props = {
 export function AttachmentForm({ files, selected, onSelect, onChanged, onBusyChange, disabled, label = "Photos & video" }: Props) {
   const [previews, setPreviews] = useState<Preview[]>([]);
   const [dragging, setDragging] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [operation, setOperation] = useState<"upload" | "remove" | null>(null);
+  const busy = operation !== null;
+  const uploading = operation === "upload";
   const [message, setMessage] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const urls = useRef(new Set<string>());
@@ -44,9 +46,10 @@ export function AttachmentForm({ files, selected, onSelect, onChanged, onBusyCha
   }
   async function upload() {
     if (working.current || disabled) return;
-    working.current = true; setBusy(true); onBusyChange(true); setMessage("");
+    working.current = true; setOperation("upload"); onBusyChange(true); setMessage("");
     try {
       for (const preview of previews.filter((entry) => !entry.id)) {
+        setPreviews((current) => current.map((entry) => entry.key === preview.key ? { ...entry, error: undefined } : entry));
         const data = new FormData(); data.set("operation", "upload"); data.set("file", preview.file);
         const result = await manageAttachment({ success: false, message: "" }, data);
         if (result.success && result.attachmentId) {
@@ -57,19 +60,19 @@ export function AttachmentForm({ files, selected, onSelect, onChanged, onBusyCha
       }
       await onChanged();
     } catch { setMessage("We couldn’t finish uploading. Your files are still here; please try again."); }
-    finally { working.current = false; setBusy(false); onBusyChange(false); }
+    finally { working.current = false; setOperation(null); onBusyChange(false); }
   }
   async function remove(preview: Preview | undefined, id?: string) {
     if (working.current || disabled) return;
     if (id) {
-      working.current = true; setBusy(true); onBusyChange(true);
+      working.current = true; setOperation("remove"); onBusyChange(true);
       try {
         const data = new FormData(); data.set("operation", "remove"); data.set("id", id);
         const result = await manageAttachment({ success: false, message: "" }, data);
         if (!result.success) { setMessage(result.message); return; }
         onSelect(id, false); await onChanged();
       } catch { setMessage("Couldn’t remove this file. Please try again."); return; }
-      finally { working.current = false; setBusy(false); onBusyChange(false); }
+      finally { working.current = false; setOperation(null); onBusyChange(false); }
     }
     if (preview) {
       URL.revokeObjectURL(preview.url); urls.current.delete(preview.url);
@@ -87,12 +90,25 @@ export function AttachmentForm({ files, selected, onSelect, onChanged, onBusyCha
         <p id={hintId}>Up to 5 files · Images 5 MB · Videos 20 MB<br />JPEG, PNG, WebP, MP4, WebM</p>
       </div>
       {(previews.length > 0 || files.length > 0) && <ul className="media-previews">
-        {previews.map((preview) => <li key={preview.key} className="media-preview"><div className="media-preview-visual">{preview.file.type.startsWith("video/") ? <video src={preview.url} controls preload="metadata" aria-label={preview.file.name} /> : <Image src={preview.url} alt={preview.file.name} width={200} height={150} unoptimized />}</div><p title={preview.file.name}>{preview.file.name}</p>{preview.id ? <label className="media-include"><input type="checkbox" checked={selected.includes(preview.id)} onChange={(event) => { if (preview.id) onSelect(preview.id, event.target.checked); }} disabled={disabled || busy} />Include in report</label> : <span className="media-preview-status">{busy ? "Uploading…" : "Ready to upload"}</span>}{preview.error && <p className="report-error" role="alert">{preview.error}</p>}<button type="button" className="media-remove" disabled={disabled || busy} onClick={() => void remove(preview, preview.id)} aria-label={`Remove ${preview.file.name}`}>Remove</button></li>)}
-        {files.filter((file) => !previews.some((preview) => preview.id === file.id)).map((file, index) => <li key={file.id} className="media-preview"><div className="media-existing-placeholder">{file.kind === "image" ? "Image" : "Video"}<span>Previously uploaded</span></div><p>{file.kind === "image" ? "Image" : "Video"} {index + 1}</p><label className="media-include"><input type="checkbox" checked={selected.includes(file.id)} disabled={disabled || busy} onChange={(event) => onSelect(file.id, event.target.checked)} />Include in report</label><button type="button" className="media-remove" disabled={disabled || busy} onClick={() => void remove(undefined, file.id)}>Remove</button></li>)}
+        {previews.map((preview) => <li key={preview.key} className="media-preview"><div className="media-preview-visual">{preview.file.type.startsWith("video/") ? <video src={preview.url} controls preload="metadata" aria-label={preview.file.name} /> : <Image src={preview.url} alt={preview.file.name} width={200} height={150} unoptimized />}</div><p title={preview.file.name}>{preview.file.name}</p>{preview.id ? <label className="media-include"><input type="checkbox" checked={selected.includes(preview.id)} onChange={(event) => { if (preview.id) onSelect(preview.id, event.target.checked); }} disabled={disabled || busy} />Include in report</label> : <span className="media-preview-status">{preview.error ? "Upload failed" : "Selected"}</span>}{preview.error && <p className="report-error" role="alert">{preview.error}</p>}<button type="button" className="media-remove" disabled={disabled || busy} onClick={() => void remove(preview, preview.id)} aria-label={`Remove ${preview.file.name}`}>Remove</button></li>)}
+        {files.filter((file) => !previews.some((preview) => preview.id === file.id)).map((file, index) => <li key={file.id} className="media-preview"><StoredAttachmentPreview file={file} index={index} /><p>{file.kind === "image" ? "Image" : "Video"} {index + 1}</p><label className="media-include"><input type="checkbox" checked={selected.includes(file.id)} disabled={disabled || busy} onChange={(event) => onSelect(file.id, event.target.checked)} />Include in report</label><button type="button" className="media-remove" disabled={disabled || busy} onClick={() => void remove(undefined, file.id)}>Remove</button></li>)}
       </ul>}
-      {staged.length > 0 && <button type="button" className="media-upload-button" onClick={() => void upload()} disabled={disabled || busy}>{busy ? "Uploading…" : `Upload ${staged.length === 1 ? "file" : `${staged.length} files`}`}</button>}
+      {staged.length > 0 && <button type="button" className="media-upload-button" onClick={() => void upload()} disabled={disabled || busy} aria-busy={uploading} aria-live="polite">
+        {uploading && <span className="media-upload-spinner" aria-hidden="true" />}
+        {uploading ? "Uploading…" : `Upload ${staged.length === 1 ? "file" : `${staged.length} files`}`}
+      </button>}
       {message && <p className="report-error" role="alert">{message}</p>}
       <p className="report-hint">Upload your selected files before submitting. Uploaded files are included automatically.</p>
     </section>
   );
+}
+
+function StoredAttachmentPreview({ file, index }: { file: MediaSummary; index: number }) {
+  const [failed, setFailed] = useState(false);
+  const label = `${file.kind === "image" ? "Image" : "Video"} ${index + 1}`;
+  const src = `/api/attachments/${file.id}/preview`;
+  if (failed) return <div className="media-existing-placeholder" role="status">Preview unavailable<span>You can still include or remove this file.</span></div>;
+  return <div className="media-preview-visual">{file.kind === "image"
+    ? <Image src={src} alt={label} width={200} height={150} unoptimized onError={() => setFailed(true)} />
+    : <video src={src} controls preload="metadata" aria-label={label} onError={() => setFailed(true)} />}</div>;
 }
